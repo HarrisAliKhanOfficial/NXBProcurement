@@ -2,23 +2,23 @@ import base64
 import datetime
 import os
 import uuid
+
 import flask
 import jwt
 from flask import Blueprint, request, url_for, jsonify, make_response, g
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-from . import db
+
 from App import UPLOAD_FOLDER, priv_key
-
-
+from . import db
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 bp = Blueprint('api', __name__, url_prefix="/api")
 mail = Mail()
 
 global roles
-roles = {1: 'Manager', 3: 'User', 2: 'Staff', 4: 'Finance'}
+roles = {1: 'Manager', 2: 'Staff', 3: 'User',  4: 'Finance'}
 
 
 def dict_factory(cursor, row):
@@ -32,7 +32,7 @@ def conn_curr():
     conn = db.get_db()
     conn.row_factory = dict_factory
     cur = conn.cursor()
-    return (conn, cur)
+    return conn, cur
 
 
 @bp.before_app_request
@@ -40,7 +40,7 @@ def get_auth_token(user=None):
     auth_header = request.headers.get('Authorization', None)
     if url_for('api.login') == str(request.url_rule):
         pass
-    elif auth_header != None:
+    elif auth_header is not None:
         try:
             auth_token = auth_header.split(" ")[1]
             resp = decode_token(auth_token)
@@ -56,14 +56,13 @@ def get_auth_token(user=None):
             return make_response(jsonify(responseObject)), 401
     else:
         responseObject = {
-                'status': 'fail',
-                'message': "Please provide auth token"
-            }
+            'status': 'fail',
+            'message': "Please provide auth token"
+        }
         return make_response(jsonify(responseObject)), 401
 
 
 def encode_token(user_id):
-    global cur
     try:
 
         payload = {
@@ -96,9 +95,7 @@ def allowed_file(filename):
 
 @bp.route('api/email/verify?code=<string:code>')
 def email_verify(code=None):
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     json_list = []
     user = cur.execute("SELECT * from user where verification_code=?", (code,)).fetchone()
 
@@ -111,9 +108,7 @@ def email_verify(code=None):
 
 
 def forget_password(email, verification):
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     id = uuid.uuid4()
     verification_code = hash(datetime.datetime.now())
 
@@ -139,6 +134,29 @@ def note_repr(key):
     }
 
 
+@bp.route('/change-password', methods=['PUT'])
+def change_password():
+    content = flask.request.get_json()
+
+    json_list = []
+
+    conn, cur = conn_curr()
+
+    oldPassword = content['oldPassword']
+
+    password = content['password']
+
+    conn.execute('UPDATE user set password=? where password=?',
+                 (generate_password_hash(password), generate_password_hash(oldPassword),))
+    conn.commit()
+
+    user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
+
+    json_list.append(user)
+
+    return jsonify(json_list)
+
+
 def send_email(email, verification_code):
     msg = Message('Thank you for registering',
                   sender='ashketchumreal4life@gmail.com',
@@ -151,15 +169,9 @@ def send_email(email, verification_code):
 
 @bp.route('/genericsearch', methods=['GET', 'POST'])
 def search(parameter=None):
-    # website = str(request.url).rsplit('/',1)
-    #
-    # return jsonify(website[1])
-
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where role_id = {0}'.format(parameter)).fetchall()
 
     for i in all_users:
@@ -172,9 +184,7 @@ def search(parameter=None):
 def allstaff():
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where role_id = {0}'.format(2)).fetchall()
 
     for i in all_users:
@@ -187,13 +197,9 @@ def allstaff():
 def allmembers():
     diction = dict(request.headers)
 
-    # return jsonify((diction['Postman-Token']))
-
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where role_id = {0}'.format(3)).fetchall()
 
     for i in all_users:
@@ -206,9 +212,7 @@ def allmembers():
 def allfinance():
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where role_id = {0}'.format(4)).fetchall()
 
     for i in all_users:
@@ -221,9 +225,7 @@ def allfinance():
 def allmanagers():
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where role_id = {0}'.format(1)).fetchall()
 
     for i in all_users:
@@ -236,24 +238,20 @@ def allmanagers():
 def allUsers():
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user').fetchall()
 
     for i in all_users:
         i['role'] = roles[i['role_id']]
 
-    return jsonify(all_users, {})
+    return jsonify(all_users)
 
 
 @bp.route('/terminateduser/')
 def terminatedUsers():
     global roles
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where is_terminated=1').fetchall()
 
     for i in all_users:
@@ -268,20 +266,10 @@ def updateactivation():
 
     json_list = []
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
 
     id = content['id']
 
-    diction = dict(request.headers)
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
 
     conn.execute('UPDATE user set status=? where id=?', (0, id,))
     conn.commit()
@@ -293,26 +281,12 @@ def updateactivation():
 
 @bp.route('/updateterminated', methods=['PUT'])
 def updateterminated(id=None):
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
-
-    diction = dict(request.headers)
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
 
     content = flask.request.get_json()
 
     json_list = []
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
 
     id = content['id']
 
@@ -328,24 +302,73 @@ def updateterminated(id=None):
 
 
 @bp.route('/user', methods=['PUT'])
-def editProfile():
-    if request.method == 'POST':
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
+def update_Profile():
+    if request.method == 'PUT':
+        conn, cur = conn_curr()
 
-        diction = dict(request.headers)
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
 
-        except:
+        content = flask.request.get_json()
 
-            return jsonify("Un Authorized Token")
+        json_list = []
 
-        diction = dict(request.headers)
+        name = content['name']
 
-        Userkey = diction['Authorization']
+        user_id = g.user['id']
+
+        phone = content['phone']
+
+        image = str(content['image'])
+
+        image = image.split('base64,')[-1]
+
+        if image != "NULL":
+            image = image.encode('utf-8')
+
+            decode_image = base64.decodebytes(image + b'===')
+
+            image = decode_image
+
+            image_id = uuid.uuid4()
+
+            image_path = str(image_id)
+
+            file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
+            file.write(image)
+            file.close()
+
+            user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+            try:
+
+                conn.execute(
+                    'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
+
+            except:
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
+
+        conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
+        conn.commit()
+
+        user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
+        json_list.append(user)
+
+        return jsonify(json_list)
+
+
+@bp.route('/userId/<int>:key', methods=['PUT'])
+def edit_User(key):
+    conn, cur = conn_curr()
+
+    if request.method == 'PUT':
 
         content = flask.request.get_json()
 
@@ -355,181 +378,75 @@ def editProfile():
 
         user_id = content['id']
 
+        password = content['password']
+
+        email = content['email']
+
+        role_id = content['role_id']
+
         phone = content['phone']
 
-        image = str(content['image'])
+        try:
 
-        image = image.split('base64,')[-1]
+            image = str(content['image'])
 
-        if image != "NULL":
-            image = image.encode('utf-8')
+            image = image.split('base64,')[-1]
 
-            decode_image = base64.decodebytes(image + b'===')
+            if image != "NULL":
+                image = image.encode('utf-8')
 
-            image = decode_image
+                decode_image = base64.decodebytes(image + b'===')
 
-            image_id = uuid.uuid4()
+                image = decode_image
 
-            image_path = str(image_id)
+                image_id = uuid.uuid4()
 
-            file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
-            file.write(image)
-            file.close()
+                image_path = str(image_id)
 
-            # file.save(os.path.join(UPLOAD_FOLDER, (image_path)))
+                file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
+                file.write(image)
+                file.close()
 
-            user = cur.execute("SELECT * from user where id=?", (id,)).fetchone()
+                user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+                try:
 
-            conn.execute(
-                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user['id'],
-                 datetime.datetime.now())
-            )
-            conn.commit()
+                    conn.execute(
+                        'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
+                         datetime.datetime.now())
+                    )
+                    conn.commit()
 
-        conn.execute('UPDATE user set name=?,phone=?,  where remember_token=? ',
-                     (name, phone, Userkey,))
+                except:
+                    conn.execute(
+                        'INSERT INTO images (id, url, user_id,created_at)'
+                        ' VALUES (?, ?, ?, ?)',
+                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
+                         datetime.datetime.now())
+                    )
+                    conn.commit()
+        except:
+
+            print('No Image')
+
+        conn.execute('UPDATE user set name=?,phone=?,role_id=?,password=?,email=?   where id=? ',
+                     (name, phone, role_id, generate_password_hash(password), email, user_id,))
         conn.commit()
 
-        user = cur.execute('SELECT * from user where remember_token=?', (diction,)).fetchone()
+        user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
         json_list.append(user)
 
         return jsonify(json_list)
 
-    else:
-        diction = dict(request.headers)
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
-
-        user = cur.execute('SELECT * from user where remember_token=?', (diction,)).fetchone()
-
-        return jsonify(user)
-
-
-@bp.route('/userId/<int>:key', methods=['PUT'])
-def editUser(key):
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
-
-    diction = dict(request.headers)
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
-
-    if request.method == 'POST':
-
-        Userkey = key
-
-        content = flask.request.get_json()
-
-        json_list = []
-
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        name = content['name']
-        email = content['email']
-        phone = content['phone']
-        password = content['password']
-        role = content['role_id']
-
-        image = str(content['image'])
-
-        image = image.split('base64,')[-1]
-
-        if image != "NULL":
-            image = image.encode('utf-8')
-
-            decode_image = base64.decodebytes(image + b'===')
-
-            image = decode_image
-
-            image_id = uuid.uuid4()
-
-            image_path = str(image_id)
-
-            file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
-            file.write(image)
-            file.close()
-
-            # file.save(os.path.join(UPLOAD_FOLDER, (image_path)))
-
-            user = cur.execute("SELECT * from user where id=?", (id,)).fetchone()
-
-            conn.execute(
-                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user['id'],
-                 datetime.datetime.now())
-            )
-            conn.commit()
-
-        pass_check = cur.execute('SELECT * from user where id=?', (Userkey,)).fetchone()
-
-        if email is None or password is None or phone is None:
-
-            json_list.append("The {0} Email, Contact Info and Password are required for update".format(name))
-
-        elif name is None:
-            json_list.append("The {0} Name cannot be null ".format(email))
-
-        # elif not check_password_hash(pass_check['password'], password):
-        #     json_list.append(str(email) + " of has password Error ")
-        else:
-
-            conn.execute('UPDATE user set name=?,phone=?, email = ?, password = ?, role_id=? where id=? ',
-                         (name, phone, email, generate_password_hash(password), role, Userkey,))
-            conn.commit()
-            user = cur.execute('SELECT * from user where id=?', (Userkey,)).fetchone()
-            json_list.append(user)
-
-        return jsonify(json_list)
-    else:
-        Userkey = key
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        user = cur.execute('SELECT * from user where id=?', (Userkey,)).fetchone()
-
-        return jsonify(user)
-
 
 @bp.route('/deleteuser', methods=['DELETE'])
 def deletex():
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
-
-    diction = dict(request.headers)
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
 
     content = flask.request.get_json()
 
     json_list = []
 
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
 
     email = content['email']
 
@@ -549,7 +466,6 @@ def deletex():
 
 @bp.route('/register', methods=['POST'])
 def register():
-
     if request.method == "POST" and g.user['role_id'] == 1:
         conn, cur = conn_curr()
         content = flask.request.get_json()
@@ -577,33 +493,38 @@ def register():
 
             try:
                 image = request.json.get('image')
+
                 data = image.split(';base64,')
                 image = data[-1]
                 ext = data[0].split('image/')[-1]
+
                 if image != "NULL":
                     image = image.encode('utf-8')
                     decode_image = base64.decodebytes(image + b'===')
                     image = decode_image
                     image_id = uuid.uuid4()
                     image_path = str(image_id)
-                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}")), 'wb')
+
+                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
                     file.write(image)
                     file.close()
                     user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
                     conn.execute(
                         'INSERT INTO images (id, url, user_id,created_at)'
                         ' VALUES (?, ?, ?, ?)',
-                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user['id'],
-                        datetime.datetime.now())
+                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user['id'],
+                         datetime.datetime.now())
                     )
                     conn.commit()
-            except :
-                print("Image not given")    
-            # send_email(email, verification_code)
+            except:
+                print("Image not given")
+
+                # send_email(email, verification_code)
             user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
             del user['password']
-            image = cur.execute("SELECT * from images where user_id=?", (str(id),)).fetchone()
-            return jsonify({ "status": "success", "data": user })
+
+            return jsonify({"status": "success", "data": user})
+
     return jsonify({"message": "Unauthorized"}), 403
 
 
@@ -611,9 +532,7 @@ def register():
 def login():
     if request.method == "POST":
         content = flask.request.get_json()
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
+        conn, cur = conn_curr()
 
         email = content['email']
         password = content['password']
@@ -632,7 +551,7 @@ def login():
                                    (email,)).fetchone()
                 token = encode_token(user['id'])
                 user.pop("password")
-                data = {"user": user, "token":token, "success": True,}
+                data = {"user": user, "token": token, "success": True, }
                 return jsonify(data)
 
 
@@ -645,11 +564,11 @@ def logout():
     return make_response(jsonify(responseObject)), 200
 
 
-@bp.route('/createRequest', methods=['POST'])
+@bp.route('/create-request', methods=['POST'])
 def create_request():
     conn, cur = conn_curr()
     content = flask.request.get_json()
-    
+
     user_id = g.user['id']
     request_id = str(uuid.uuid4())
     items_array = content['items']
@@ -659,21 +578,25 @@ def create_request():
     staff_id = None
     if user['role_id'] == 3:
         status = 'Pending'
+        conn.execute(
+            'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+            'VALUES (?,?,?,?,?,?)',
+            (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
+        conn.commit()
     else:
         staff_id = user["id"]
         status = 'Processing'
-    conn.execute(
-    'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-    'VALUES (?,?,?,?,?,?)',
-    (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
-    conn.commit()
+        conn.execute(
+            'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+            'VALUES (?,?,?,?,?,?)',
+            (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
+        conn.commit()
 
     for i in range(len(items_array)):
         content_items = content[int(i)]
         name = content_items['name']
         description = content_items['description']
         quantity = content_items['quantity']
-       
         items_id = uuid.uuid4()
         request = cur.execute("SELECT * from request WHERE _id=?",
                               (request_id,)).fetchone()
@@ -683,33 +606,23 @@ def create_request():
             (str(items_id), name, str(description), "0", request['_id'], datetime.datetime.now(), quantity,))
         conn.commit()
     items = cur.execute("SELECT * from items WHERE request_id=?",
-                            (request_id,)).fetchall()
+                        (request_id,)).fetchall()
     request["items"] = items
     return jsonify([request])
 
 
-@bp.route('/process-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
-def assign_request():
+@bp.route('/process-requests/request-details?requestId=<int:request_id>', methods=['POST', 'GET'])
+def assign_request(request_id=None):
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
+
         content = flask.request.get_json()
         staff_id = content['staff_id']
-        request_id = content['id']
-        user_id = content['user_id']
+
+        request_id = request_id
 
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         conn.execute('UPDATE request set staff_id=?, status=? where id=?', (staff_id, 'Processing', request_id,))
         conn.commit()
@@ -720,21 +633,9 @@ def assign_request():
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         request_id = content['id']
 
@@ -747,25 +648,13 @@ def assign_request():
 def read_request(id=None):
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
 
         request_id = content['id']
 
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Pending"',
                            (request_id,)).fetchone()
@@ -776,21 +665,7 @@ def read_request(id=None):
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
-
-        content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
+        conn, cur = conn_curr()
 
         items = cur.execute('SELECT * from items,request where items.request_id=request._id and '
                             'request.status="Pending" or request.status="Quotes Added" ').fetchall()
@@ -798,29 +673,17 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/approved-requests',defaults={'id': None}, methods=['GET'])
+@bp.route('/approved-requests', defaults={'id': None}, methods=['GET'])
 def approved_request(id=None):
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
 
         request_id = content['id']
 
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
                            (request_id,)).fetchone()
@@ -831,21 +694,7 @@ def approved_request(id=None):
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
-
-        content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
+        conn, cur = conn_curr()
 
         items = cur.execute('SELECT * from items,request where items.request_id=request._id and '
                             'request.status="Approved"').fetchall()
@@ -854,28 +703,14 @@ def approved_request(id=None):
 
 @bp.route('/createquotes/<string:request_id>', methods=['POST'])
 def create_quote(request_id=None):
-    if request.method == "POST":
+    if request.method == "POST" and g.user['role_id'] == 2:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        diction = dict(request.headers)
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=2 ",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
+        conn, cur = conn_curr()
 
         if 'file' not in request.files:
             return jsonify('No Quote has been added')
 
         files = request.files.getlist("files")
-
-        content = flask.request.get_json()
-
-        # request_id = content['request_id']
 
         for file in files:
             if file and allowed_file(file.filename):
@@ -896,21 +731,9 @@ def create_quote(request_id=None):
 
 @bp.route('/allquotes', methods=['GET'])
 def all_quotes():
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
-
-    diction = dict(request.headers)
+    conn, cur = conn_curr()
 
     json_list = []
-
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
 
     user = cur.execute('SELECT * from quotes where status<>"Approved"').fetchall()
     json_list.append(user)
@@ -918,49 +741,13 @@ def all_quotes():
     return jsonify(json_list)
 
 
-# @bp.route('/allquotesverified', methods=['GET'])
-# def all_quotes_verified():
-#     conn = db.get_db()
-#     conn.row_factory = dict_factory
-#     cur = conn.cursor()
-
-#     diction = dict(request.headers)
-
-#     json_list = []
-
-#     try:
-#         user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-#                            (diction['Authorization'],)).fetchone()
-
-#     except:
-
-#         return jsonify("Un Authorized Token")
-
-#     user = cur.execute('SELECT * from quotes where status="Quotes Added"').fetchall()
-#     json_list.append(user)
-
-#     return jsonify(json_list)
-
-
 @bp.route('orders/order-details?orderId=<int:id>', methods=['POST', 'GET'])
 @bp.route('/orders', defaults={'id': None}, methods=['GET'])
 def all_quotes_verified(id=None):
     if id is None:
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         user = cur.execute('SELECT * from orders').fetchall()
         json_list.append(user)
@@ -971,11 +758,7 @@ def all_quotes_verified(id=None):
 
         if request.method == 'GET':
 
-            conn = db.get_db()
-            conn.row_factory = dict_factory
-            cur = conn.cursor()
-
-            diction = dict(request.headers)
+            conn, cur = conn_curr()
 
             content = flask.request.get_json()
 
@@ -984,14 +767,6 @@ def all_quotes_verified(id=None):
             comment = content['comment']
 
             json_list = []
-
-            try:
-                user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                                   (diction['Authorization'],)).fetchone()
-
-            except:
-
-                return jsonify("Un Authorized Token")
 
             conn.execute('UPDATE orders is_sign=?, comment=?  where id=?', (True, comment, order_id,))
             conn.commit()
@@ -1002,21 +777,9 @@ def all_quotes_verified(id=None):
 
 
         else:
-            conn = db.get_db()
-            conn.row_factory = dict_factory
-            cur = conn.cursor()
-
-            diction = dict(request.headers)
+            conn, cur = conn_curr()
 
             json_list = []
-
-            try:
-                user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                                   (diction['Authorization'],)).fetchone()
-
-            except:
-
-                return jsonify("Un Authorized Token")
 
             user = cur.execute('SELECT * from orders where id=?', (id)).fetchone()
             json_list.append(user)
@@ -1028,27 +791,13 @@ def all_quotes_verified(id=None):
 def approve_quote():
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
 
         request_id = content['id']
 
-        user_id = content['user_id']
-
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         conn.execute('UPDATE quotes status=? where request_id=?', ('Approved', request_id,))
         conn.commit()
@@ -1059,21 +808,9 @@ def approve_quote():
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         request_id = content['id']
 
@@ -1086,17 +823,7 @@ def approve_quote():
 def create_orders_from_staff():
     if request.method == "POST":
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-        diction = dict(request.headers)
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=3 ",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
+        conn, cur = conn_curr()
 
         if 'file' not in request.files:
             return jsonify('No Quote has been added')
@@ -1110,41 +837,18 @@ def create_orders_from_staff():
 
         total = content['total']
 
-        # for i in range(len(items_array)):
-        #     items_array = content[int(i)]
-        #
-        #     name = items_array['name']
-        #
-        #     quantity = items_array['quantity']
-        #
-        #     price = items_array[i]['price']
-
-        ### If No request Id then is_cash is 0
         is_cash = False
 
         for file in files:
             if file and allowed_file(file.filename):
                 file.save(os.path.join(UPLOAD_FOLDER, secure_filename(file.filename)))
-                #
-                # items_id = str(uuid.uuid4())
-                #
-                # # description = cur.execute("SELECT items.description from items,request where request.request_id=?",
-                # # (str(request_id),))
-                # #
-                # # conn.execute(
-                # #     'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
-                # #     'VALUES (?,?,?,?,?,?,?)',
-                # #     (str(items_id), name, description, price, str(request_id), datetime.datetime.now(), quantity,))
-                # # conn.commit()
-                #
-                # # items = cur.execute('SELECT * from items where id=?', (items_id,)).fetchone()
 
                 conn.execute(
                     'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
                     'is_read, '
                     'comment) '
                     ' VALUES (?, ?, ?, ?,?,?,?,?,?,?,?)',
-                    (str(uuid.uuid4()), str(items_array), request_id, total, user['id'], False,
+                    (str(uuid.uuid4()), str(items_array), request_id, total, g.user['id'], False,
                      os.path.join(UPLOAD_FOLDER, secure_filename(file.filename)), datetime.datetime.now(),
                      is_cash, False)
                 )
@@ -1157,9 +861,7 @@ def create_orders_from_staff():
 def create_purchase_order():
     if request.method == "POST":
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
+        conn, cur = conn_curr()
         diction = dict(request.headers)
         try:
             user = cur.execute("SELECT * from user where remember_token=? and role_id=3 ",
@@ -1176,8 +878,6 @@ def create_purchase_order():
         content = request.form
 
         items_array = content['items']
-
-        # request_id = content['request_id']
 
         total = content['total']
 
@@ -1205,9 +905,7 @@ def create_purchase_order():
 def approve_orderfinance(order_id=None):
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
+        conn, cur = conn_curr()
 
         diction = dict(request.headers)
 
@@ -1219,14 +917,6 @@ def approve_orderfinance(order_id=None):
 
         json_list = []
 
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=4",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
-
         conn.execute('UPDATE orders is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
@@ -1236,103 +926,18 @@ def approve_orderfinance(order_id=None):
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
-
-        content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=4",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
-
-        order_id = content['id']
+        conn, cur = conn_curr()
 
         orders = cur.execute('SELECT * from orders where is_sign=True').fetchall()
 
         return jsonify(orders)
 
 
-#
-#
-# @bp.route('/purchaseorder', methods=['POST', 'GET'])
-# def approve_purchaseorder():
-#     if request.method == 'POST':
-#
-#         conn = db.get_db()
-#         conn.row_factory = dict_factory
-#         cur = conn.cursor()
-#
-#         diction = dict(request.headers)
-#
-#         content = flask.request.get_json()
-#
-#         is_read = content['is_read']
-#
-#         order_id = content['id']
-#
-#         user_id = content['user_id']
-#
-#         request_id = content['request_id']
-#
-#         json_list = []
-#
-#         try:
-#             user = cur.execute("SELECT * from user where remember_token=? and role_id = 4",
-#                                (diction['Authorization'],)).fetchone()
-#
-#         except:
-#
-#             return jsonify("Un Authorized Token")
-#
-#         conn.execute('UPDATE orders is_read=? where id=? and is_sign=True and request_id=?',
-#                      (is_read, order_id, request_id,))
-#         conn.commit()
-#         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
-#         json_list.append(user)
-#
-#         return jsonify(json_list)
-#
-#     else:
-#
-#         conn = db.get_db()
-#         conn.row_factory = dict_factory
-#         cur = conn.cursor()
-#
-#         diction = dict(request.headers)
-#
-#         content = flask.request.get_json()
-#
-#         try:
-#             user = cur.execute("SELECT * from user where remember_token=? and role_id = 4",
-#                                (diction['Authorization'],)).fetchone()
-#
-#         except:
-#
-#             return jsonify("Un Authorized Token")
-#
-#         order_id = content['id']
-#
-#         orders = cur.execute('SELECT * from orders where id=? and is_sign=False ', (order_id,)).fetchone()
-#
-#         return jsonify(orders)
-
-
 @bp.route('/approveorderfrommanager', methods=['POST', 'GET'])
 def approve_ordermanager():
     if request.method == 'POST':
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
 
@@ -1341,14 +946,6 @@ def approve_ordermanager():
         comment = content['comment']
 
         json_list = []
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
 
         conn.execute('UPDATE orders is_sign=?, comment=?  where id=?', (True, comment, order_id,))
         conn.commit()
@@ -1359,23 +956,7 @@ def approve_ordermanager():
 
     else:
 
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
-
-        content = flask.request.get_json()
-
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-
-        except:
-
-            return jsonify("Un Authorized Token")
-
-        order_id = content['id']
+        conn, cur = conn_curr()
 
         orders = cur.execute('SELECT * from orders where is_sign=False ').fetchall()
 
@@ -1385,23 +966,39 @@ def approve_ordermanager():
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
     conn, cur = conn_curr()
-    
-    if g.user['role_id'] != 1:
-        return jsonify({"message": "Unauthorized"}), 403
-
-    total_request = cur.execute('SELECT * from request').fetchall()
 
     count_total_request = cur.execute('SELECT COUNT(*) from request').fetchall()
 
-
-    new_request = cur.execute('SELECT * from request where request.status="Pending"').fetchall()
-
     count_new_request = cur.execute('SELECT COUNT(*) from request where request.status="Pending"').fetchall()
-
-    processing_request = cur.execute('SELECT * from request where request.status="Processing"').fetchall()
 
     count_processing_request = cur.execute('SELECT COUNT(*) from request where request.status="Processing"').fetchall()
 
-    return jsonify(total_request, new_request, processing_request,
-                   {'totalRequests': count_total_request[0], 'pending': count_new_request[0],
-                    'waitingForApproval': count_processing_request[0]})
+    return jsonify({'totalRequests': count_total_request[0]["COUNT(*)"], 'pending': count_new_request[0]["COUNT(*)"],
+                    'waitingForApproval': count_processing_request[0]["COUNT(*)"], 'success': True})
+
+
+@bp.route('/totalrequests')
+def total_request():
+    conn, cur = conn_curr()
+
+    total_request = cur.execute('SELECT * from request').fetchall()
+
+    return jsonify(total_request)
+
+
+@bp.route('/newrequests')
+def new_total_request():
+    conn, cur = conn_curr()
+
+    new_request = cur.execute('SELECT * from request where request.status="Pending"').fetchall()
+
+    return jsonify(new_request)
+
+
+@bp.route('/processingrequests')
+def processing_total_request():
+    conn, cur = conn_curr()
+
+    processing_request = cur.execute('SELECT * from request where request.status="Processing"').fetchall()
+
+    return jsonify(processing_request)
