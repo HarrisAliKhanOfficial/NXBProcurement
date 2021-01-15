@@ -1,14 +1,13 @@
 import os
+
 from flask import Flask
+
 from . import db
-import os
-from flask_mail import Mail, Message
 
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "App", "uploads")
 priv_key = 'pppppppppqqqqqqqqqqqqqqeeeeeeeeeee'
 
 from . import api as Api
-
 
 
 def create_app(test_config=None):
@@ -37,14 +36,9 @@ def create_app(test_config=None):
     except OSError:
         pass
 
-        # Registering the app for authentication
-    # app.register_blueprint(auth.bp)
-    #
-    # app.register_blueprint(user.bp)
     app.register_blueprint(Api.bp)
 
     db.init_app(app)
-
 
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 465
@@ -55,9 +49,7 @@ def create_app(test_config=None):
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['SECRET_KEY'] = "pppppppppqqqqqqqqqqqqqqeeeeeeeeeee"
 
-
     # auth.mail.init_app(app)
     Api.mail.init_app(app)
-
 
     return app

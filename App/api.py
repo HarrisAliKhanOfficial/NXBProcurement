@@ -418,7 +418,7 @@ def edit_User(key):
 
                 conn.execute(
                     'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path  + "." + str(ext)))), user_id,
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
                      datetime.datetime.now())
                 )
                 conn.commit()
@@ -507,7 +507,6 @@ def register():
                 data = image.split(';base64,')
                 image = data[-1]
                 ext = data[0].split('image/')[-1]
-
 
                 image = image.encode('utf-8')
                 decode_image = base64.decodebytes(image + b'===')
