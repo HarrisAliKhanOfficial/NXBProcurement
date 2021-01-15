@@ -650,7 +650,6 @@ def create_request():
     conn, cur = conn_curr()
     content = flask.request.get_json()
     
-    
     user_id = g.user['id']
     request_id = str(uuid.uuid4())
     items_array = content['items']
@@ -666,7 +665,7 @@ def create_request():
     conn.execute(
     'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
     'VALUES (?,?,?,?,?,?)',
-    (str(request_id), user_id, datetime.datetime.now(), status, True,staff_id))
+    (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
     conn.commit()
 
     for i in range(len(items_array)):
@@ -674,7 +673,6 @@ def create_request():
         name = content_items['name']
         description = content_items['description']
         quantity = content_items['quantity']
-     
        
         items_id = uuid.uuid4()
         request = cur.execute("SELECT * from request WHERE _id=?",
@@ -697,15 +695,10 @@ def assign_request():
         conn = db.get_db()
         conn.row_factory = dict_factory
         cur = conn.cursor()
-
         diction = dict(request.headers)
-
         content = flask.request.get_json()
-
         staff_id = content['staff_id']
-
         request_id = content['id']
-
         user_id = content['user_id']
 
         json_list = []
