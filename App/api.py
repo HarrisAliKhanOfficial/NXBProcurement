@@ -638,7 +638,7 @@ def assign_request(request_id=None):
 
         conn.execute('UPDATE request set staff_id=?, status=? where id=?', (staff_id, 'Processing', request_id,))
         conn.commit()
-        user = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchone()
+        user = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchall()
         json_list.append(user)
 
         return jsonify(json_list)
@@ -651,7 +651,7 @@ def assign_request(request_id=None):
 
         request_id = content['id']
 
-        items = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchone()
+        items = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchall()
 
         return jsonify(items)
 
@@ -826,7 +826,7 @@ def approve_quote():
 
         request_id = content['id']
 
-        items = cur.execute('SELECT * from quotes where request_id=?', (request_id,)).fetchone()
+        items = cur.execute('SELECT * from quotes where request_id=?', (request_id,)).fetchall()
 
         return jsonify(items)
 
