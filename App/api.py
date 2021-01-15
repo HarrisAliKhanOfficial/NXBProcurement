@@ -44,9 +44,7 @@ def get_auth_token(user=None):
         try:
             auth_token = auth_header.split(" ")[1]
             resp = decode_token(auth_token)
-
             conn, cur = conn_curr()
-            
             user = cur.execute("SELECT * from user where id=?", (resp,)).fetchone()
             responseObject = user
             g.user = responseObject
@@ -551,18 +549,20 @@ def deletex():
 
 @bp.route('/register', methods=['POST'])
 def register():
-    if request.method == "POST" and g.user['role_id'] == 1:
-        conn, cur = conn_curr()
 
+    if request.method == "POST" and g.user['role_id'] == 1:
+
+        conn, cur = conn_curr()
         content = flask.request.get_json()
-        
+
         name = content['name']
         email = content['email']
         password = content['password']
-        contact = request.json.get('phone', None)
+        contact = content['phone']
         role = content['role_id']
         id = uuid.uuid4()
-        
+
+
         verification_code = hash(datetime.datetime.now())
         created_at = datetime.datetime.now()
 
@@ -581,36 +581,38 @@ def register():
                  True, True,))
             conn.commit()
 
-            image = str(content['image'])
-            image = image.split('base64,')[-1]
-            if image != "NULL":
-                image = image.encode('utf-8')
-                decode_image = base64.decodebytes(image + b'===')
-                image = decode_image
-                image_id = uuid.uuid4()
-                image_path = str(image_id)
+            try:
+                image = request.json.get('image')
+                image = image.split('base64,')[-1]
 
-                file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
-                file.write(image)
-                file.close()
+                if image != "NULL":
+                    image = image.encode('utf-8')
+                    decode_image = base64.decodebytes(image + b'===')
+                    image = decode_image
+                    image_id = uuid.uuid4()
+                    image_path = str(image_id)
 
-                # file.save(os.path.join(UPLOAD_FOLDER, (image_path)))
+                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
+                    file.write(image)
+                    file.close()
 
-                user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                    conn.execute(
+                        'INSERT INTO images (id, url, user_id,created_at)'
+                        ' VALUES (?, ?, ?, ?)',
+                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user['id'],
+                        datetime.datetime.now())
+                    )
+                    conn.commit()
+            except :
+                print("Image not given")    
 
-                conn.execute(
-                    'INSERT INTO images (id, url, user_id,created_at)'
-                    ' VALUES (?, ?, ?, ?)',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user['id'],
-                     datetime.datetime.now())
-                )
-                conn.commit()
-
-            send_email(email, verification_code)
+            # send_email(email, verification_code)
             user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-            image = cur.execute("SELECT * from images where id=?", (str(image_id),)).fetchone()
+            del user['password']
+            image = cur.execute("SELECT * from images where user_id=?", (str(id),)).fetchone()
 
-            return jsonify(user, image)
+            return jsonify({ "status": "success", "data": user })
 
 
 @bp.route('/login', methods=['POST'])
