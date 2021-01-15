@@ -4,13 +4,18 @@ from . import db
 import os
 from flask_mail import Mail, Message
 
+UPLOAD_FOLDER = os.path.join(os.getcwd(), "App", "uploads")
+priv_key = 'pppppppppqqqqqqqqqqqqqqeeeeeeeeeee'
+
 from . import api as Api
 
 
 
 def create_app(test_config=None):
     # create and configure the app
-    app = Flask(__name__, instance_relative_config=True)
+    UPLOAD_FOLDER = os.path.join(os.getcwd(), "App", "uploads")
+
+    app = Flask(__name__, instance_relative_config=True, static_url_path=UPLOAD_FOLDER)
 
     # assign a secret key also connect it with the database
     app.config.from_mapping(
@@ -39,7 +44,7 @@ def create_app(test_config=None):
     app.register_blueprint(Api.bp)
 
     db.init_app(app)
-    UPLOAD_FOLDER = '/home/harrisali/PycharmProjects/NXBProcurement'
+
 
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 465
@@ -48,7 +53,7 @@ def create_app(test_config=None):
     app.config['MAIL_USE_TLS'] = False
     app.config['MAIL_USE_SSL'] = True
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-    app.config['SECRET_KEY'] = Api.priv_key
+    app.config['SECRET_KEY'] = "pppppppppqqqqqqqqqqqqqqeeeeeeeeeee"
 
 
     # auth.mail.init_app(app)
