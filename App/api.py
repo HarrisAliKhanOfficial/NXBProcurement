@@ -18,7 +18,7 @@ bp = Blueprint('api', __name__, url_prefix="/api")
 mail = Mail()
 
 global roles
-roles = {1: 'Manager', 2: 'Staff', 3: 'User',  4: 'Finance'}
+roles = {1: 'Manager', 2: 'Staff', 3: 'User', 4: 'Finance'}
 
 
 def dict_factory(cursor, row):
@@ -270,7 +270,6 @@ def updateactivation():
 
     id = content['id']
 
-
     conn.execute('UPDATE user set status=? where id=?', (0, id,))
     conn.commit()
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
@@ -281,7 +280,6 @@ def updateactivation():
 
 @bp.route('/updateterminated', methods=['PUT'])
 def updateterminated(id=None):
-
     content = flask.request.get_json()
 
     json_list = []
@@ -306,7 +304,6 @@ def update_Profile():
     if request.method == 'PUT':
         conn, cur = conn_curr()
 
-
         content = flask.request.get_json()
 
         json_list = []
@@ -319,41 +316,44 @@ def update_Profile():
 
         image = str(content['image'])
 
-        image = image.split('base64,')[-1]
+        data = image.split(';base64,')
 
-        if image != "NULL":
-            image = image.encode('utf-8')
+        image = data[-1]
 
-            decode_image = base64.decodebytes(image + b'===')
+        ext = data[0].split('image/')[-1]
 
-            image = decode_image
+        image = image.encode('utf-8')
 
-            image_id = uuid.uuid4()
+        decode_image = base64.decodebytes(image + b'===')
 
-            image_path = str(image_id)
+        image = decode_image
 
-            file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
-            file.write(image)
-            file.close()
+        image_id = uuid.uuid4()
 
-            user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
-            try:
+        image_path = str(image_id)
 
-                conn.execute(
-                    'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
-                     datetime.datetime.now())
-                )
-                conn.commit()
+        file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
+        file.write(image)
+        file.close()
 
-            except:
-                conn.execute(
-                    'INSERT INTO images (id, url, user_id,created_at)'
-                    ' VALUES (?, ?, ?, ?)',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
-                     datetime.datetime.now())
-                )
-                conn.commit()
+        user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+        try:
+
+            conn.execute(
+                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
+                 datetime.datetime.now())
+            )
+            conn.commit()
+
+        except:
+            conn.execute(
+                'INSERT INTO images (id, url, user_id,created_at)'
+                ' VALUES (?, ?, ?, ?)',
+                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
+                 datetime.datetime.now())
+            )
+            conn.commit()
 
         conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
         conn.commit()
@@ -390,41 +390,44 @@ def edit_User(key):
 
             image = str(content['image'])
 
-            image = image.split('base64,')[-1]
+            data = image.split(';base64,')
 
-            if image != "NULL":
-                image = image.encode('utf-8')
+            image = data[-1]
 
-                decode_image = base64.decodebytes(image + b'===')
+            ext = data[0].split('image/')[-1]
 
-                image = decode_image
+            image = image.encode('utf-8')
 
-                image_id = uuid.uuid4()
+            decode_image = base64.decodebytes(image + b'===')
 
-                image_path = str(image_id)
+            image = decode_image
 
-                file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
-                file.write(image)
-                file.close()
+            image_id = uuid.uuid4()
 
-                user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
-                try:
+            image_path = str(image_id)
 
-                    conn.execute(
-                        'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
-                         datetime.datetime.now())
-                    )
-                    conn.commit()
+            file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
+            file.write(image)
+            file.close()
 
-                except:
-                    conn.execute(
-                        'INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
-                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg"))), user_id,
-                         datetime.datetime.now())
-                    )
-                    conn.commit()
+            user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+            try:
+
+                conn.execute(
+                    'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path  + "." + str(ext)))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
+
+            except:
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
         except:
 
             print('No Image')
@@ -441,7 +444,6 @@ def edit_User(key):
 
 @bp.route('/deleteuser', methods=['DELETE'])
 def deletex():
-
     content = flask.request.get_json()
 
     json_list = []
@@ -503,25 +505,25 @@ def register():
                 image = data[-1]
                 ext = data[0].split('image/')[-1]
 
-                if image != "NULL":
-                    image = image.encode('utf-8')
-                    decode_image = base64.decodebytes(image + b'===')
-                    image = decode_image
-                    image_id = uuid.uuid4()
-                    image_path = str(image_id)
 
-                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
-                    file.write(image)
-                    file.close()
+                image = image.encode('utf-8')
+                decode_image = base64.decodebytes(image + b'===')
+                image = decode_image
+                image_id = uuid.uuid4()
+                image_path = str(image_id)
 
-                    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-                    conn.execute(
-                        'INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
-                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user['id'],
-                         datetime.datetime.now())
-                    )
-                    conn.commit()
+                file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
+                file.write(image)
+                file.close()
+
+                user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user['id'],
+                     datetime.datetime.now())
+                )
+                conn.commit()
             except:
                 print("Image not given")
 
