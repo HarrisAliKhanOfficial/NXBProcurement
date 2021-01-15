@@ -314,47 +314,50 @@ def update_Profile():
 
         phone = content['phone']
 
-        image = str(content['image'])
-
-        data = image.split(';base64,')
-
-        image = data[-1]
-
-        ext = data[0].split('image/')[-1]
-
-        image = image.encode('utf-8')
-
-        decode_image = base64.decodebytes(image + b'===')
-
-        image = decode_image
-
-        image_id = uuid.uuid4()
-
-        image_path = str(image_id)
-
-        file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
-        file.write(image)
-        file.close()
-
-        user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
         try:
 
-            conn.execute(
-                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
-                 datetime.datetime.now())
-            )
-            conn.commit()
+            image = str(content['image'])
 
+            data = image.split(';base64,')
+
+            image = data[-1]
+
+            ext = data[0].split('image/')[-1]
+
+            image = image.encode('utf-8')
+
+            decode_image = base64.decodebytes(image + b'===')
+
+            image = decode_image
+
+            image_id = uuid.uuid4()
+
+            image_path = str(image_id)
+
+            file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
+            file.write(image)
+            file.close()
+
+            user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+            try:
+
+                conn.execute(
+                    'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
+
+            except:
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
+                     datetime.datetime.now())
+                )
+                conn.commit()
         except:
-            conn.execute(
-                'INSERT INTO images (id, url, user_id,created_at)'
-                ' VALUES (?, ?, ?, ?)',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
-                 datetime.datetime.now())
-            )
-            conn.commit()
-
+            print('No Image')
         conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
         conn.commit()
 
