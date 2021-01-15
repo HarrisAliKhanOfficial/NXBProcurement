@@ -551,28 +551,22 @@ def deletex():
 def register():
 
     if request.method == "POST" and g.user['role_id'] == 1:
-
         conn, cur = conn_curr()
         content = flask.request.get_json()
-
         name = content['name']
         email = content['email']
         password = content['password']
         contact = content['phone']
         role = content['role_id']
         id = uuid.uuid4()
-
-
         verification_code = hash(datetime.datetime.now())
         created_at = datetime.datetime.now()
 
         if name is None and email is None and password is None and contact is None:
             return jsonify("Email or password cannot be null")
-
         elif cur.execute('SELECT id from user where  email=?', (email,)).fetchone() is not None:
             return jsonify("Id already exists")
         else:
-
             conn.execute(
                 'INSERT INTO user(id,name,email,phone,password, role_id, created_at, verification_code, status, '
                 'is_verified) '
@@ -583,19 +577,18 @@ def register():
 
             try:
                 image = request.json.get('image')
-                image = image.split('base64,')[-1]
-
+                data = image.split(';base64,')
+                image = data[-1]
+                ext = data[0].split('image/')[-1]
                 if image != "NULL":
                     image = image.encode('utf-8')
                     decode_image = base64.decodebytes(image + b'===')
                     image = decode_image
                     image_id = uuid.uuid4()
                     image_path = str(image_id)
-
-                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
+                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}")), 'wb')
                     file.write(image)
                     file.close()
-
                     user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
                     conn.execute(
                         'INSERT INTO images (id, url, user_id,created_at)'
@@ -606,13 +599,12 @@ def register():
                     conn.commit()
             except :
                 print("Image not given")    
-
             # send_email(email, verification_code)
             user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
             del user['password']
             image = cur.execute("SELECT * from images where user_id=?", (str(id),)).fetchone()
-
             return jsonify({ "status": "success", "data": user })
+    return jsonify({"message": "Unauthorized"}), 403
 
 
 @bp.route('/login', methods=['POST'])
@@ -653,58 +645,49 @@ def logout():
     return make_response(jsonify(responseObject)), 200
 
 
-@bp.route('/new-requests', methods=['POST'])
+@bp.route('/createRequest', methods=['POST'])
 def create_request():
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+    conn, cur = conn_curr()
     content = flask.request.get_json()
-    user_id = str(content['id'])
+    
+    
+    user_id = g.user['id']
     request_id = str(uuid.uuid4())
     items_array = content['items']
     content = items_array
 
-    for i in range(len(items_array)):
+    user = g.user
+    staff_id = None
+    if user['role_id'] == 3:
+        status = 'Pending'
+    else:
+        staff_id = user["id"]
+        status = 'Processing'
+    conn.execute(
+    'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+    'VALUES (?,?,?,?,?,?)',
+    (str(request_id), user_id, datetime.datetime.now(), status, True,staff_id))
+    conn.commit()
 
+    for i in range(len(items_array)):
         content_items = content[int(i)]
-        # return jsonify(content_items['name'])
         name = content_items['name']
         description = content_items['description']
         quantity = content_items['quantity']
-        # price = content[i]['price']
-
-        print("Error")
-
-        user = cur.execute("SELECT * from user WHERE id=?",
-                           (user_id,)).fetchone()
-        if user['role_id'] == 3:
-
-            status = 'Pending'
-
-        else:
-
-            status = 'Processing'
-
-        conn.execute(
-            'INSERT INTO request(_id,user_id,created_at,status,order_created) '
-            'VALUES (?,?,?,?,?)',
-            (str(request_id), user_id, datetime.datetime.now(), status, True,))
-        conn.commit()
-
+     
+       
         items_id = uuid.uuid4()
-
         request = cur.execute("SELECT * from request WHERE _id=?",
                               (request_id,)).fetchone()
-
         conn.execute(
             'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
             'VALUES (?,?,?,?,?,?,?)',
             (str(items_id), name, str(description), "0", request['_id'], datetime.datetime.now(), quantity,))
         conn.commit()
-
-        request = cur.execute("SELECT * from request WHERE _id=?",
-                              (request['_id'],)).fetchone()
-        return jsonify(request)
+    items = cur.execute("SELECT * from items WHERE request_id=?",
+                            (request_id,)).fetchall()
+    request["items"] = items
+    return jsonify([request])
 
 
 @bp.route('/process-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
@@ -1408,23 +1391,15 @@ def approve_ordermanager():
 
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
-    diction = dict(request.headers)
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
-
-    except:
-
-        return jsonify("Un Authorized Token")
+    conn, cur = conn_curr()
+    
+    if g.user['role_id'] != 1:
+        return jsonify({"message": "Unauthorized"}), 403
 
     total_request = cur.execute('SELECT * from request').fetchall()
 
     count_total_request = cur.execute('SELECT COUNT(*) from request').fetchall()
 
-    # return (count_total_request[0])
 
     new_request = cur.execute('SELECT * from request where request.status="Pending"').fetchall()
 

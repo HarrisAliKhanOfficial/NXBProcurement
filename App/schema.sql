@@ -21,7 +21,7 @@ DROP TABLE IF EXISTS images;
 
 
 CREATE TABLE request(
-    _id VARCHAR(255) PRIMARY KEY,
+    id VARCHAR(255) PRIMARY KEY,
     user_id VARCHAR(255) ,
     staff_id VARCHAR(255) ,
     created_at TIMESTAMP WITHOUT TIMEZONE_,
