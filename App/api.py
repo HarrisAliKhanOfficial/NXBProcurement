@@ -694,7 +694,7 @@ def approved_request(id=None):
         json_list = []
 
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
-                           (request_id,)).fetchone()
+                           (request_id,)).fetchall()
 
         json_list.append(user)
 
