@@ -18,7 +18,7 @@ bp = Blueprint('api', __name__, url_prefix="/api")
 mail = Mail()
 
 global roles
-roles = {1: 'Manager', 3: 'User', 2: 'Staff', 4: 'Finance'}
+roles = {1: 'Manager', 2: 'Staff', 3: 'User',  4: 'Finance'}
 
 
 def dict_factory(cursor, row):
@@ -244,7 +244,7 @@ def allUsers():
     for i in all_users:
         i['role'] = roles[i['role_id']]
 
-    return jsonify(all_users, {})
+    return jsonify(all_users)
 
 
 @bp.route('/terminateduser/')
@@ -270,7 +270,6 @@ def updateactivation():
 
     id = content['id']
 
-    diction = dict(request.headers)
 
     conn.execute('UPDATE user set status=? where id=?', (0, id,))
     conn.commit()
@@ -282,9 +281,6 @@ def updateactivation():
 
 @bp.route('/updateterminated', methods=['PUT'])
 def updateterminated(id=None):
-    conn, cur = conn_curr()
-
-    diction = dict(request.headers)
 
     content = flask.request.get_json()
 
@@ -310,7 +306,6 @@ def update_Profile():
     if request.method == 'PUT':
         conn, cur = conn_curr()
 
-        diction = dict(request.headers)
 
         content = flask.request.get_json()
 
@@ -446,9 +441,6 @@ def edit_User(key):
 
 @bp.route('/deleteuser', methods=['DELETE'])
 def deletex():
-    conn, cur = conn_curr()
-
-    diction = dict(request.headers)
 
     content = flask.request.get_json()
 
@@ -518,7 +510,7 @@ def register():
                     image_id = uuid.uuid4()
                     image_path = str(image_id)
 
-                    file = open(os.path.join(UPLOAD_FOLDER, (image_path +"."+str(ext) )), 'wb')
+                    file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
                     file.write(image)
                     file.close()
 
@@ -526,7 +518,7 @@ def register():
                     conn.execute(
                         'INSERT INTO images (id, url, user_id,created_at)'
                         ' VALUES (?, ?, ?, ?)',
-                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "."+str(ext)))), user['id'],
+                        (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user['id'],
                          datetime.datetime.now())
                     )
                     conn.commit()
@@ -540,6 +532,7 @@ def register():
             return jsonify({"status": "success", "data": user})
 
     return jsonify({"message": "Unauthorized"}), 403
+
 
 @bp.route('/login', methods=['POST'])
 def login():
