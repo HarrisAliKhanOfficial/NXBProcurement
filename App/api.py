@@ -989,7 +989,7 @@ def dashboard():
                     'waitingForApproval': count_processing_request[0]["COUNT(*)"], 'success': True})
 
 
-@bp.route('/totalrequests')
+@bp.route('/totalrequests',methods=['GET'])
 def total_request():
     conn, cur = conn_curr()
 
@@ -998,7 +998,24 @@ def total_request():
     return jsonify(total_request)
 
 
-@bp.route('/newrequests')
+
+
+@bp.route('/totalrequestscheck',methods=['GET'])
+def total_request_check():
+    conn, cur = conn_curr()
+
+    # total_request = cur.execute('SELECT * from request where user_id=? ',(g.user['id'],)).fetchall()
+    # items = cur.execute('SELECT * from items where request_id=? ',(total_request['_id'],)).fetchall()
+
+    total_request = cur.execute('SELECT * from request,items where user_id=? and items.request_id=request._id ',(g.user['id'],)).fetchall()
+
+    return jsonify(total_request)
+
+
+
+
+
+@bp.route('/newrequests',methods=['GET'])
 def new_total_request():
     conn, cur = conn_curr()
 
@@ -1007,7 +1024,7 @@ def new_total_request():
     return jsonify(new_request)
 
 
-@bp.route('/processingrequests')
+@bp.route('/processingrequests',methods=['GET'])
 def processing_total_request():
     conn, cur = conn_curr()
 
