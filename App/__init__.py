@@ -6,7 +6,6 @@ from flask_mail import Mail, Message
 
 from . import api as Api
 
-priv_key = os.urandom(24)
 
 
 def create_app(test_config=None):
@@ -49,7 +48,7 @@ def create_app(test_config=None):
     app.config['MAIL_USE_TLS'] = False
     app.config['MAIL_USE_SSL'] = True
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
-    app.config['SECRET_KEY'] = priv_key
+    app.config['SECRET_KEY'] = Api.priv_key
 
 
     # auth.mail.init_app(app)

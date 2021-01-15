@@ -2,7 +2,6 @@ import base64
 import datetime
 import os
 import uuid
-
 import flask
 import jwt
 from flask import Blueprint, request, url_for, jsonify, make_response
@@ -11,12 +10,12 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 # from flask_jwt import JWT, jwt_required, current_identity
-from App import priv_key
 from . import db
 
-# from .db import get_db
+# os.urandom(24)
+priv_key = "pppppppppqqqqqqqqqqqqqqeeeeeeeeeee"
 
-UPLOAD_FOLDER = '/home/harrisali/PycharmProjects/NXBProcurement'
+UPLOAD_FOLDER = os.getcwd()
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 
@@ -39,14 +38,11 @@ def dict_factory(cursor, row):
 
 global cur
 
-conn = db.get_db()
-conn.row_factory = dict_factory
-cur = conn.cursor()
-_emails = cur.execute("SELECT email from user").fetchall()
-_id = cur.execute("SELECT id from user").fetchall()
+# conn = db.get_db()
+# conn.row_factory = dict_factory
+# cur = conn.cursor()
 
 
-#
 # def authenticate(email, password):
 #
 #     global users
@@ -65,64 +61,56 @@ _id = cur.execute("SELECT id from user").fetchall()
 #     user_id = payload['identity']
 
 
-def exclude_from_auth(func):
-    func._exclude_from_auth = True
-    return func
-
-
-@staticmethod
-def decode_token(auth_token):
-    try:
-        payload = jwt.decode(auth_token, priv_key)
-        return payload['sub']
-
-    except jwt.ExpiredSignatureError:
-        return 'Signature expired. Please log in again.'
-
-    except jwt.InvalidTokenError:
-        return 'Invalid token. Please log in again.'
-
-
-@bp.before_app_request()
+@bp.before_app_request
 def get_auth_token(user=None):
     global cur
 
-    # get the auth token
-    auth_header = request.headers.get('Authorization')
-    if auth_header:
-        auth_token = auth_header.split(" ")[1]
+    if url_for('api.login') == str(request.url_rule):
+        pass
     else:
-        auth_token = ''
-    if auth_token:
-        resp = decode_token(auth_token)
-        if not isinstance(resp, str):
-            user = cur.execute("SELECT * from user where id=?", (resp['id'],)).fetchone()
-            responseObject = {
-                'status': 'success',
-                'data': {
-                    'user_id': user["id"],
-                    'email': user["email"],
-                    'role_id': user['role_id'],
-                    'registered_on': user['created_at']
+        auth_header = request.headers.get('Authorization')
+        if auth_header:
+            auth_token = auth_header.split(" ")[1]
+        else:
+            auth_token = ''
+        if auth_token:
+            
+            resp = decode_token(auth_token)
+            
+            print(resp)
+            
+            if isinstance(resp, str):
+
+                conn = db.get_db()
+                conn.row_factory = dict_factory
+                cur = conn.cursor()
+
+                user = cur.execute("SELECT * from user where id=?", (resp,)).fetchone()
+                responseObject = {
+                    'status': 'success',
+                    'data': {
+                        'user_id': user["id"],
+                        'email': user["email"],
+                        'role_id': user['role_id'],
+                        'registered_on': user['created_at']
+                    }
                 }
+                return make_response(jsonify(responseObject)), 200
+            responseObject = {
+                'status': 'fail',
+                'message': resp
             }
-            return make_response(jsonify(responseObject)), 200
-        responseObject = {
-            'status': 'fail',
-            'message': resp
-        }
-        return make_response(jsonify(responseObject)), 401
-    else:
-        responseObject = {
-            'status': 'fail',
-            'message': 'Provide a valid auth token.'
-        }
-        return make_response(jsonify(responseObject)), 401
+            return make_response(jsonify(responseObject)), 401
+        else:
+            responseObject = {
+                'status': 'fail',
+                'message': 'Provide a valid auth token.'
+            }
+            return make_response(jsonify(responseObject)), 401
 
 
 def encode_token(user_id):
     global cur
-
     try:
 
         payload = {
@@ -130,11 +118,22 @@ def encode_token(user_id):
             'iat': datetime.datetime.utcnow(),
             'sub': user_id
         }
-
-        return jwt.encode(payload, priv_key, algorithm='HS256')
-
+        token = jwt.encode(payload, priv_key, algorithm='HS256')
+        return str(token.decode('utf-8'))
     except Exception as e:
         return e
+
+
+def decode_token(auth_token):
+    try:
+        payload = jwt.decode(auth_token, priv_key, algorithms='HS256')
+        return payload['sub']
+
+    except jwt.ExpiredSignatureError:
+        return 'Signature expired. Please log in again.'
+
+    except jwt.InvalidTokenError:
+        return 'Invalid token. Please log in again.'
 
 
 def allowed_file(filename):
@@ -184,7 +183,6 @@ def forget_password(email, verification):
 def note_repr(key):
     return {
         'url': request.host_url.rstrip('/') + url_for('notes_detail', key=key)
-
     }
 
 
@@ -596,12 +594,9 @@ def deletex():
     return jsonify(json_list)
 
 
-@bp.route('/registerviaapi', methods=['POST'])
-def registerviaapi():
+@bp.route('/register', methods=['POST'])
+def register():
     if request.method == "POST":
-
-        # diction = dict(request.headers)
-
         conn = db.get_db()
         conn.row_factory = dict_factory
         cur = conn.cursor()
@@ -610,7 +605,6 @@ def registerviaapi():
         try:
             user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
                                (diction['Authorization'],)).fetchone()
-
         except:
 
             return jsonify("Un Authorized Token")
@@ -689,62 +683,37 @@ def registerviaapi():
             return jsonify(user, image)
 
 
-@exclude_from_auth
-@bp.route('/loginviaapi', methods=['POST'])
-def loginviaapi():
+@bp.route('/login', methods=['POST'])
+def login():
     if request.method == "POST":
-        diction = dict(request.headers)
-
-        # content = flask.request.form
-        # return jsonify(content)
         content = flask.request.get_json()
-
         conn = db.get_db()
         conn.row_factory = dict_factory
         cur = conn.cursor()
 
         email = content['email']
         password = content['password']
-        # id = content['uid']
 
         if email is None or password is None or id is None:
             return jsonify("Email or password cannot be null")
 
         else:
-
             pass_check = cur.execute('SELECT * from user where user.email=?', (email,)).fetchone()
-
             if not check_password_hash(pass_check['password'], password):
                 return jsonify("Password Incorrect")
-
             elif pass_check['is_verified'] != 1:
-
                 return jsonify('Please verify your email address')
-
-
             else:
-                user = cur.execute("SELECT id,email,name,phone from user WHERE email=?",
+                user = cur.execute("SELECT * from user WHERE email=?",
                                    (email,)).fetchone()
-                conn.execute('UPDATE user set remember_token=? where id=?', (diction['Authorization'], user['id'],))
-                conn.commit()
+                token = encode_token(user['id'])
+                user.pop("password")
+                data = {"user": user, "token":token, "success": True,}
+                return jsonify(data)
 
-                return jsonify(user)
 
-
-@exclude_from_auth
 @bp.route('/logout')
 def logout():
-    # conn = db.get_db()
-    # conn.row_factory = dict_factory
-    # cur = conn.cursor()
-    #
-    # diction = dict(request.headers)
-    # user = cur.execute("SELECT * from user WHERE remember_token=?",
-    #                    (diction['Authorization'],)).fetchone()
-    # conn.execute('UPDATE user set remember_token=? where remember_token=?', (None, diction['Authorization'],))
-    # conn.commit()
-    #
-    # return jsonify(user)
     responseObject = {
         'status': 'success',
         'message': 'Successfully logged out.'
@@ -757,24 +726,10 @@ def create_request():
     conn = db.get_db()
     conn.row_factory = dict_factory
     cur = conn.cursor()
-
-    # diction = dict(request.headers)
-    # try:
-    #     user = cur.execute("SELECT * from user where remember_token=? ",
-    #                        (diction['Authorization'],)).fetchone()
-    #
-    # except:
-    #
-    #     return jsonify("Un Authorized Token")
-
     content = flask.request.get_json()
-
     user_id = str(content['id'])
-
     request_id = str(uuid.uuid4())
-
     items_array = content['items']
-
     content = items_array
 
     for i in range(len(items_array)):
@@ -1055,28 +1010,28 @@ def all_quotes():
     return jsonify(json_list)
 
 
-@bp.route('/allquotesverified', methods=['GET'])
-def all_quotes_verified():
-    conn = db.get_db()
-    conn.row_factory = dict_factory
-    cur = conn.cursor()
+# @bp.route('/allquotesverified', methods=['GET'])
+# def all_quotes_verified():
+#     conn = db.get_db()
+#     conn.row_factory = dict_factory
+#     cur = conn.cursor()
 
-    diction = dict(request.headers)
+#     diction = dict(request.headers)
 
-    json_list = []
+#     json_list = []
 
-    try:
-        user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                           (diction['Authorization'],)).fetchone()
+#     try:
+#         user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
+#                            (diction['Authorization'],)).fetchone()
 
-    except:
+#     except:
 
-        return jsonify("Un Authorized Token")
+#         return jsonify("Un Authorized Token")
 
-    user = cur.execute('SELECT * from quotes where status="Quotes Added"').fetchall()
-    json_list.append(user)
+#     user = cur.execute('SELECT * from quotes where status="Quotes Added"').fetchall()
+#     json_list.append(user)
 
-    return jsonify(json_list)
+#     return jsonify(json_list)
 
 
 @bp.route('orders/order-details?orderId=<int:id>', methods=['POST', 'GET'])
