@@ -570,7 +570,7 @@ def logout():
     return make_response(jsonify(responseObject)), 200
 
 
-@bp.route('/create-request', methods=['POST'])
+@bp.route('/createRequest', methods=['POST'])
 def create_request():
     conn, cur = conn_curr()
     content = flask.request.get_json()
