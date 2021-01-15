@@ -4,109 +4,64 @@ import os
 import uuid
 import flask
 import jwt
-from flask import Blueprint, request, url_for, jsonify, make_response
+from flask import Blueprint, request, url_for, jsonify, make_response, g
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
-
-# from flask_jwt import JWT, jwt_required, current_identity
 from . import db
+from App import UPLOAD_FOLDER, priv_key
 
-# os.urandom(24)
-priv_key = "pppppppppqqqqqqqqqqqqqqeeeeeeeeeee"
 
-UPLOAD_FOLDER = os.getcwd()
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
-
 bp = Blueprint('api', __name__, url_prefix="/api")
+mail = Mail()
 
 global roles
-
 roles = {1: 'Manager', 3: 'User', 2: 'Staff', 4: 'Finance'}
-
-mail = Mail()
 
 
 def dict_factory(cursor, row):
     d = {}
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
-
     return d
 
 
-global cur
-
-# conn = db.get_db()
-# conn.row_factory = dict_factory
-# cur = conn.cursor()
-
-
-# def authenticate(email, password):
-#
-#     global users
-#
-#     user = cur.execute("SELECT * from user where email=?",(email,)).fetchone()
-#     if user['email'] is not None:
-#         if check_password_hash(user['password'], password):
-#
-#             return jsonify(user)
-#
-#
-# def identity(payload):
-#
-#     global cur
-#
-#     user_id = payload['identity']
+def conn_curr():
+    conn = db.get_db()
+    conn.row_factory = dict_factory
+    cur = conn.cursor()
+    return (conn, cur)
 
 
 @bp.before_app_request
 def get_auth_token(user=None):
-    global cur
-
+    auth_header = request.headers.get('Authorization', None)
     if url_for('api.login') == str(request.url_rule):
         pass
-    else:
-        auth_header = request.headers.get('Authorization')
-        if auth_header:
+    elif auth_header != None:
+        try:
             auth_token = auth_header.split(" ")[1]
-        else:
-            auth_token = ''
-        if auth_token:
-            
             resp = decode_token(auth_token)
-            
-            print(resp)
-            
-            if isinstance(resp, str):
 
-                conn = db.get_db()
-                conn.row_factory = dict_factory
-                cur = conn.cursor()
-
-                user = cur.execute("SELECT * from user where id=?", (resp,)).fetchone()
-                responseObject = {
-                    'status': 'success',
-                    'data': {
-                        'user_id': user["id"],
-                        'email': user["email"],
-                        'role_id': user['role_id'],
-                        'registered_on': user['created_at']
-                    }
-                }
-                return make_response(jsonify(responseObject)), 200
+            conn, cur = conn_curr()
+            
+            user = cur.execute("SELECT * from user where id=?", (resp,)).fetchone()
+            responseObject = user
+            g.user = responseObject
+        except Exception as e:
             responseObject = {
                 'status': 'fail',
-                'message': resp
+                'message': str(e)
             }
             return make_response(jsonify(responseObject)), 401
-        else:
-            responseObject = {
+    else:
+        responseObject = {
                 'status': 'fail',
-                'message': 'Provide a valid auth token.'
+                'message': "Please provide auth token"
             }
-            return make_response(jsonify(responseObject)), 401
+        return make_response(jsonify(responseObject)), 401
 
 
 def encode_token(user_id):
@@ -130,10 +85,10 @@ def decode_token(auth_token):
         return payload['sub']
 
     except jwt.ExpiredSignatureError:
-        return 'Signature expired. Please log in again.'
+        raise jwt.ExpiredSignatureError('Signature expired. Please log in again.')
 
     except jwt.InvalidTokenError:
-        return 'Invalid token. Please log in again.'
+        raise jwt.ExpiredSignatureError('Invalid token. Please log in again.')
 
 
 def allowed_file(filename):
@@ -596,41 +551,20 @@ def deletex():
 
 @bp.route('/register', methods=['POST'])
 def register():
-    if request.method == "POST":
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
-
-        diction = dict(request.headers)
-        try:
-            user = cur.execute("SELECT * from user where remember_token=? and role_id=1",
-                               (diction['Authorization'],)).fetchone()
-        except:
-
-            return jsonify("Un Authorized Token")
+    if request.method == "POST" and g.user['role_id'] == 1:
+        conn, cur = conn_curr()
 
         content = flask.request.get_json()
-
+        
         name = content['name']
         email = content['email']
         password = content['password']
-        contact = content['phone']
+        contact = request.json.get('phone', None)
         role = content['role_id']
         id = uuid.uuid4()
-
-        image = str(content['image'])
-
-        image = image.split('base64,')[-1]
-
-        # return jsonify(image)
-
+        
         verification_code = hash(datetime.datetime.now())
         created_at = datetime.datetime.now()
-        # return jsonify(verification_code)
-
-        conn = db.get_db()
-        conn.row_factory = dict_factory
-        cur = conn.cursor()
 
         if name is None and email is None and password is None and contact is None:
             return jsonify("Email or password cannot be null")
@@ -647,15 +581,13 @@ def register():
                  True, True,))
             conn.commit()
 
+            image = str(content['image'])
+            image = image.split('base64,')[-1]
             if image != "NULL":
                 image = image.encode('utf-8')
-
                 decode_image = base64.decodebytes(image + b'===')
-
                 image = decode_image
-
                 image_id = uuid.uuid4()
-
                 image_path = str(image_id)
 
                 file = open(os.path.join(UPLOAD_FOLDER, (image_path + ".jpeg")), 'wb')
@@ -675,9 +607,7 @@ def register():
                 conn.commit()
 
             send_email(email, verification_code)
-
             user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-
             image = cur.execute("SELECT * from images where id=?", (str(image_id),)).fetchone()
 
             return jsonify(user, image)
