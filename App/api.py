@@ -299,6 +299,7 @@ def updateterminated(id=None):
 @bp.route('/updateProfile', methods=['PUT'])
 def update_profile():
     if request.method == 'PUT':
+        
         conn, cur = conn_curr()
         content = flask.request.get_json()
         json_list = []
@@ -318,25 +319,28 @@ def update_profile():
 
             save_image_bs64(image, ext, image_path)
 
-            conn.execute(
-                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
-                    datetime.datetime.now())
-            )
-            conn.commit()
+            try:
+                conn.execute(
+                    'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
+                        datetime.datetime.now())
+                )
+                conn.commit()
 
-        except:
-            conn.execute(
-                'INSERT INTO images (id, url, user_id,created_at)'
-                ' VALUES (?, ?, ?, ?)',
-                (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
-                    datetime.datetime.now())
-            )
-            conn.commit()
+            except:
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
+                        datetime.datetime.now())
+                )
+                conn.commit()
 
+        except :
+            print("No image provided")
+        
         conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
         conn.commit()
-
         user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
         json_list.append(user)
 
