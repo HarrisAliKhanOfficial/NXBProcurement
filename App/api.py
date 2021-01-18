@@ -600,6 +600,10 @@ def user_requests():
             total_request[i]['items'] = items
         return jsonify(total_request)
 
+@bp.route('/user', methods=['GET'])
+def user():
+    return jsonify({"data":g.user})
+
 
 @bp.route('/process-requests/request-details?requestId=<int:request_id>', methods=['POST', 'GET'])
 def assign_request(request_id=None):
