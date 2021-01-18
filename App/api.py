@@ -510,14 +510,15 @@ def create_request():
                             (request_id,)).fetchall()
         requests["items"] = items
         return jsonify([requests])
-    return jsonify("Bitach")
+    return jsonify("Noauth")
 
 @bp.route('/userRequests', methods=['GET'])
 def user_requests():
-    if request.method == "GET" and g.user['role_id'] == [2, 3]:
+    if request.method == "GET" and g.user['role_id'] in [2, 3]:
         conn, cur = conn_curr()
         total_request = cur.execute('SELECT * from request where user_id=? ',(g.user['id'],)).fetchall()
-        return jsonify(attach_items_to_request(total_request))
+        return jsonify(attach_items_to_request('items', total_request))
+    return jsonify("Not Authorized"), 401
 
 
 def attach_items_to_request(table, total_request):
@@ -828,20 +829,16 @@ def approve_ordermanager():
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
     conn, cur = conn_curr()
-
     count_total_request = cur.execute('SELECT COUNT(*) from request').fetchall()
-
     count_new_request = cur.execute('SELECT COUNT(*) from request where request.status="Pending"').fetchall()
-
     count_processing_request = cur.execute('SELECT COUNT(*) from request where request.status="Processing"').fetchall()
-
     return jsonify({'totalRequests': count_total_request[0]["COUNT(*)"], 'pending': count_new_request[0]["COUNT(*)"],
                     'waitingForApproval': count_processing_request[0]["COUNT(*)"], 'success': True})
 
 
 @bp.route('/totalrequests', methods=['GET'])
 def total_request():
-    return jsonify(get_request())
+    return jsonify(pms_requests())
 
 
 @bp.route('/totalrequestscheck', methods=['GET'])
@@ -855,29 +852,38 @@ def total_request_check():
 @bp.route('/allnewrequests', methods=['GET'])
 def new_total_request():
     status = 'Pending'
-    processing = get_request(status)
-    return jsonify('items', attach_items_to_request(processing))
+    processing = pms_requests({"status": status})
+    items_attached = attach_items_to_request('items', processing)
+    quotes_attached = attach_items_to_request('quotes', items_attached)
+    return jsonify(items_attached)
 
 
 @bp.route('/allinprocessrequests', methods=['GET'])
 def processing_total_request():
     status = 'Processing'
-    processing = get_request(status)
-    return jsonify('items', attach_items_to_request(processing))
+    processing = pms_requests({"status": status})
+    items_attached = attach_items_to_request('items', processing)
+    quotes_attached = attach_items_to_request('quotes', items_attached)
+    return jsonify(quotes_attached)
 
 
-def get_request(status=None):
+def pms_requests(params_dict=None):
     conn, cur = conn_curr()
     query = "SELECT * from request "
-    if status:
-        query = query + f" where request.status = '{status}'"
+    if params_dict:
+        query += "where "
+        for i in params_dict:
+            query +=  f"{i} = '{params_dict[i]}' and "
+        query = query[:-4]
+    print(query)
     return cur.execute(query).fetchall()
 
 
 @bp.route('/staffnewrequests',methods=['GET'])
 def staff_request():
     conn, cur = conn_curr()
-    all_staff_requests = cur.execute('SELECT * from request where staff_id=? and status="Processing"', (g.user['id'],)).fetchall()
+    status = 'Processing'
+    all_staff_requests = pms_requests({"status": status, "staff_id": g.user['id']})
     items_attached = attach_items_to_request('items', all_staff_requests)
     quotes_attached = attach_items_to_request('quotes', items_attached)
     return jsonify(quotes_attached)
