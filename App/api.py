@@ -134,27 +134,49 @@ def note_repr(key):
     }
 
 
-@bp.route('/change-password', methods=['PUT'])
+#
+# @bp.route('/changePassword', methods=['PUT'])
+# def change_password():
+#     content = flask.request.get_json()
+#
+#     json_list = []
+#
+#     conn, cur = conn_curr()
+#
+#     oldPassword = content['oldPassword']
+#
+#     password = content['password']
+#
+#     if not check_password_hash(g.user['password'], oldPassword):
+#         return jsonify('Password do not match')
+#
+#     conn.execute('UPDATE user set password=? where password=? and id=?',
+#                  (generate_password_hash(password), generate_password_hash(oldPassword), g.user['id'],))
+#     conn.commit()
+#
+#     user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
+#
+#     json_list.append(user)
+#
+#     return jsonify(json_list)
+
+
+@bp.route('/changePassword', methods=['POST'])
 def change_password():
     content = flask.request.get_json()
-
     json_list = []
-
     conn, cur = conn_curr()
-
     oldPassword = content['oldPassword']
-
     password = content['password']
 
-    conn.execute('UPDATE user set password=? where password=?',
-                 (generate_password_hash(password), generate_password_hash(oldPassword),))
-    conn.commit()
-
-    user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
-
-    json_list.append(user)
-
-    return jsonify(json_list)
+    if check_password_hash(g.user['password'], oldPassword):
+        conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password), g.user['id'],))
+        conn.commit()
+        user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
+        json_list.append(user)
+        return jsonify(json_list)
+    else:
+        return jsonify("Invalid password")
 
 
 def send_email(email, verification_code):
@@ -576,6 +598,8 @@ def logout():
 
 @bp.route('/createRequest', methods=['POST'])
 def create_request():
+    if g.user['role_id'] not in [1, 4]:
+        return jsonify("Not ALlowed")
     conn, cur = conn_curr()
     content = flask.request.get_json()
 
@@ -1027,3 +1051,8 @@ def processing_total_request():
     processing_request = cur.execute('SELECT * from request where request.status="Processing"').fetchall()
 
     return jsonify(processing_request)
+
+
+@bp.route('/user', methods=['GET'])
+def user():
+    return jsonify({"data":g.user})
