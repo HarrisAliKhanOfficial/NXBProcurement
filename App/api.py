@@ -18,7 +18,7 @@ bp = Blueprint('api', __name__, url_prefix="/api")
 mail = Mail()
 
 global roles
-roles = {1: 'Manager', 2: 'Staff', 3: 'User', 4: 'Finance'}
+roles = {1: 'Manager', 2: 'Staff', 3: 'User',  4: 'Finance'}
 
 
 def dict_factory(cursor, row):
@@ -134,33 +134,6 @@ def note_repr(key):
     }
 
 
-#
-# @bp.route('/changePassword', methods=['PUT'])
-# def change_password():
-#     content = flask.request.get_json()
-#
-#     json_list = []
-#
-#     conn, cur = conn_curr()
-#
-#     oldPassword = content['oldPassword']
-#
-#     password = content['password']
-#
-#     if not check_password_hash(g.user['password'], oldPassword):
-#         return jsonify('Password do not match')
-#
-#     conn.execute('UPDATE user set password=? where password=? and id=?',
-#                  (generate_password_hash(password), generate_password_hash(oldPassword), g.user['id'],))
-#     conn.commit()
-#
-#     user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
-#
-#     json_list.append(user)
-#
-#     return jsonify(json_list)
-
-
 @bp.route('/changePassword', methods=['POST'])
 def change_password():
     content = flask.request.get_json()
@@ -170,7 +143,7 @@ def change_password():
     password = content['password']
 
     if check_password_hash(g.user['password'], oldPassword):
-        conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password), g.user['id'],))
+        conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password) ,g.user['id'],))
         conn.commit()
         user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
         json_list.append(user)
@@ -292,6 +265,7 @@ def updateactivation():
 
     id = content['id']
 
+
     conn.execute('UPDATE user set status=? where id=?', (0, id,))
     conn.commit()
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
@@ -302,6 +276,7 @@ def updateactivation():
 
 @bp.route('/updateterminated', methods=['PUT'])
 def updateterminated(id=None):
+
     content = flask.request.get_json()
 
     json_list = []
@@ -321,52 +296,34 @@ def updateterminated(id=None):
     return jsonify(json_list)
 
 
-@bp.route('/user', methods=['PUT'])
-def update_Profile():
+@bp.route('/updateProfile', methods=['PUT'])
+def update_profile():
     if request.method == 'PUT':
+
         conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         json_list = []
-
         name = content['name']
-
         user_id = g.user['id']
-
         phone = content['phone']
 
+        image_id = uuid.uuid4()
+        image_path = user_id
+
+        user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
         try:
-
-            image = str(content['image'])
-
+            image = request.json.get('image')
             data = image.split(';base64,')
-
             image = data[-1]
-
             ext = data[0].split('image/')[-1]
 
-            image = image.encode('utf-8')
+            save_image_bs64(image, ext, image_path)
 
-            decode_image = base64.decodebytes(image + b'===')
-
-            image = decode_image
-
-            image_id = uuid.uuid4()
-
-            image_path = str(image_id)
-
-            file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
-            file.write(image)
-            file.close()
-
-            user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
             try:
-
                 conn.execute(
                     'UPDATE images set id=?, url=?, user_id=?,created_at=?',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
-                     datetime.datetime.now())
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
+                        datetime.datetime.now())
                 )
                 conn.commit()
 
@@ -374,15 +331,16 @@ def update_Profile():
                 conn.execute(
                     'INSERT INTO images (id, url, user_id,created_at)'
                     ' VALUES (?, ?, ?, ?)',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user_id,
-                     datetime.datetime.now())
+                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
+                        datetime.datetime.now())
                 )
                 conn.commit()
-        except:
-            print('No Image')
+
+        except :
+            print("No image provided")
+
         conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
         conn.commit()
-
         user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
         json_list.append(user)
 
@@ -469,6 +427,7 @@ def edit_User(key):
 
 @bp.route('/deleteuser', methods=['DELETE'])
 def deletex():
+
     content = flask.request.get_json()
 
     json_list = []
@@ -494,27 +453,22 @@ def deletex():
 @bp.route('/register', methods=['POST'])
 def register():
     if request.method == "POST" and g.user['role_id'] == 1:
-
         conn, cur = conn_curr()
         content = flask.request.get_json()
-
         name = content['name']
         email = content['email']
         password = content['password']
         contact = content['phone']
         role = content['role_id']
         id = uuid.uuid4()
-
         verification_code = hash(datetime.datetime.now())
         created_at = datetime.datetime.now()
 
         if name is None and email is None and password is None and contact is None:
             return jsonify("Email or password cannot be null")
-
         elif cur.execute('SELECT id from user where  email=?', (email,)).fetchone() is not None:
             return jsonify("Id already exists")
         else:
-
             conn.execute(
                 'INSERT INTO user(id,name,email,phone,password, role_id, created_at, verification_code, status, '
                 'is_verified) '
@@ -522,32 +476,22 @@ def register():
                 (str(id), name, email, contact, generate_password_hash(password), role, created_at, verification_code,
                  True, True,))
             conn.commit()
-
             try:
                 image = request.json.get('image')
-
                 data = image.split(';base64,')
                 image = data[-1]
                 ext = data[0].split('image/')[-1]
 
-                image = image.encode('utf-8')
-                decode_image = base64.decodebytes(image + b'===')
-                image = decode_image
-                image_id = uuid.uuid4()
-                image_path = str(image_id)
-
-                file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
-                file.write(image)
-                file.close()
-
-                user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-                conn.execute(
-                    'INSERT INTO images (id, url, user_id,created_at)'
-                    ' VALUES (?, ?, ?, ?)',
-                    (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext)))), user['id'],
-                     datetime.datetime.now())
-                )
-                conn.commit()
+                if image != "NULL":
+                    save_image_bs64(image, ext, str(id))
+                    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                    conn.execute(
+                        'INSERT INTO images (id, url, user_id,created_at)'
+                        ' VALUES (?, ?, ?, ?)',
+                        (str(id), str(os.path.join(UPLOAD_FOLDER, (str(id) + "." + str(ext)))), user['id'],
+                         datetime.datetime.now())
+                    )
+                    conn.commit()
             except:
                 print("Image not given")
 
@@ -558,6 +502,15 @@ def register():
             return jsonify({"status": "success", "data": user})
 
     return jsonify({"message": "Unauthorized"}), 403
+
+def save_image_bs64(image, ext, image_path):
+    image = image.encode('utf-8')
+    decode_image = base64.decodebytes(image + b'===')
+    image = decode_image
+    file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
+    file.write(image)
+    file.close()
+
 
 
 @bp.route('/login', methods=['POST'])
@@ -598,52 +551,65 @@ def logout():
 
 @bp.route('/createRequest', methods=['POST'])
 def create_request():
-    if g.user['role_id'] not in [1, 4]:
-        return jsonify("Not ALlowed")
-    conn, cur = conn_curr()
-    content = flask.request.get_json()
+    if request.method == "POST" and g.user['role_id'] not in [1, 4]:
+        conn, cur = conn_curr()
+        content = flask.request.get_json()
+        user_id = g.user['id']
+        request_id = str(uuid.uuid4())
+        items_array = content['items']
+        content = items_array
 
-    user_id = g.user['id']
-    request_id = str(uuid.uuid4())
-    items_array = content['items']
-    content = items_array
+        user = g.user
+        staff_id = None
+        if user['role_id'] == 3:
+            status = 'Pending'
+            conn.execute(
+                'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+                'VALUES (?,?,?,?,?,?)',
+                (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
+            conn.commit()
+        else:
+            staff_id = user["id"]
+            status = 'Processing'
+            conn.execute(
+                'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+                'VALUES (?,?,?,?,?,?)',
+                (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
+            conn.commit()
 
-    user = g.user
-    staff_id = None
-    if user['role_id'] == 3:
-        status = 'Pending'
-        conn.execute(
-            'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-            'VALUES (?,?,?,?,?,?)',
-            (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
-        conn.commit()
-    else:
-        staff_id = user["id"]
-        status = 'Processing'
-        conn.execute(
-            'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-            'VALUES (?,?,?,?,?,?)',
-            (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
-        conn.commit()
+        for i in range(len(items_array)):
+            content_items = content[int(i)]
+            name = content_items['name']
+            description = content_items['description']
+            quantity = content_items['quantity']
+            items_id = uuid.uuid4()
+            requests = cur.execute("SELECT * from request WHERE _id=?",
+                                (request_id,)).fetchone()
+            print(requests)
+            conn.execute(
+                'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
+                'VALUES (?,?,?,?,?,?,?)',
+                (str(items_id), name, str(description), "0", requests['_id'], datetime.datetime.now(), quantity,))
+            conn.commit()
+        items = cur.execute("SELECT * from items WHERE request_id=?",
+                            (request_id,)).fetchall()
+        requests["items"] = items
+        return jsonify([requests])
 
-    for i in range(len(items_array)):
-        content_items = content[int(i)]
-        name = content_items['name']
-        description = content_items['description']
-        quantity = content_items['quantity']
 
-        items_id = uuid.uuid4()
-        request = cur.execute("SELECT * from request WHERE _id=?",
-                              (request_id,)).fetchone()
-        conn.execute(
-            'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
-            'VALUES (?,?,?,?,?,?,?)',
-            (str(items_id), name, str(description), "0", request['_id'], datetime.datetime.now(), quantity,))
-        conn.commit()
-    items = cur.execute("SELECT * from items WHERE request_id=?",
-                        (request_id,)).fetchall()
-    request["items"] = items
-    return jsonify([request])
+@bp.route('/userRequests', methods=['GET'])
+def user_requests():
+    if request.method == "GET" and g.user['role_id'] == 3:
+        conn, cur = conn_curr()
+        total_request = cur.execute('SELECT * from request where user_id=? ',(g.user['id'],)).fetchall()
+        for i in range(len(total_request)):
+            items = cur.execute('SELECT * from items where request_id=? ',(total_request[i]['_id'],)).fetchall()
+            total_request[i]['items'] = items
+        return jsonify(total_request)
+
+@bp.route('/user', methods=['GET'])
+def user():
+    return jsonify({"data":g.user})
 
 
 @bp.route('/process-requests/request-details?requestId=<int:request_id>', methods=['POST', 'GET'])
@@ -1051,8 +1017,3 @@ def processing_total_request():
     processing_request = cur.execute('SELECT * from request where request.status="Processing"').fetchall()
 
     return jsonify(processing_request)
-
-
-@bp.route('/user', methods=['GET'])
-def user():
-    return jsonify({"data":g.user})
