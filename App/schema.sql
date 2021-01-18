@@ -10,15 +10,6 @@ DROP TABLE IF EXISTS image;
 DROP TABLE IF EXISTS forgotpasswords;
 DROP TABLE IF EXISTS images;
 
---
---CREATE TABLE superuser(
---    id VARCHAR(255) PRIMARY KEY,
---    name TEXT NOT NULL,
---    email EMAIL UNIQUE NOT NULL,
---    password TEXT NOT NULL,
---    contact VARCHAR(14)
---);
-
 
 CREATE TABLE request(
     _id VARCHAR(255) PRIMARY KEY,
@@ -27,7 +18,7 @@ CREATE TABLE request(
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
     status VARCHAR(255),
-    order_created BIT
+    order_created BOOLEAN
 
 );
 
@@ -42,9 +33,9 @@ CREATE TABLE user(
     remember_token VARCHAR(255),
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
-    status BIT,
-    is_terminated BIT,
-    is_verified BIT,
+    status BOOLEAN,
+    is_terminated BOOLEAN,
+    is_verified BOOLEAN,
     verification_code VARCHAR(255)
 
 );
@@ -53,11 +44,11 @@ CREATE TABLE user(
 CREATE TABLE quotes(
     id VARCHAR(255) PRIMARY KEY,
     path VARCHAR(255),
-    status BIT,
+    status VARCHAR(255),
     request_id VARCHAR(255) ,
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
-    is_pdf BIT,
+    is_pdf VARCHAR(255),
     FOREIGN KEY (request_id) REFERENCES request(_id)
 
 );
@@ -83,11 +74,11 @@ CREATE TABLE orders(
     path VARCHAR(255),
     request_id VARCHAR(255) ,
     staff_id VARCHAR(255),
-    is_sign BIT,
+    is_sign BOOLEAN,
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
-    is_cash BIT,
-    is_read BIT,
+    is_cash BOOLEAN,
+    is_read BOOLEAN,
     comment TEXT,
     FOREIGN KEY (request_id) REFERENCES request (_id)
     FOREIGN KEY (items) REFERENCES items (id)
@@ -96,16 +87,6 @@ CREATE TABLE orders(
 );
 
 
-
---CREATE TABLE jobs(
---    id VARCHAR(255) PRIMARY KEY,
---    queue VARCHAR(255),
---    payload TEXT,
---    attempts SMALLINT,
---    reserved_at INTEGER,
---    available_at INTEGER,
---
---    );
 
 CREATE TABLE roles(
     id VARCHAR(255) PRIMARY KEY,
@@ -151,26 +132,3 @@ CREATE TABLE forgotpasswords(
     created_at  TIMESTAMP WITHOUT TIME ZONE,
     updated_at  TIMESTAMP WITHOUT TIME ZONE
 );
---
---
---CREATE TABLE post(
---    id VARCHAR(255) PRIMARY KEY,
---    author_id VARCHAR(255) NOT NULL,
---    created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    title TEXT NOT NULL,
---    body TEXT NOT NULL,
---    approve BIT,
---    FOREIGN KEY (author_id) REFERENCES user (id)
---
---);
---
---
---CREATE TABLE friend(
---    id VARCHAR(255) PRIMARY KEY,
---    friend_request INTEGER NOT NULL,
---    sender INTEGER NOT NULL,
---    approve BIT,
---    conversation TEXT,
---    conversation_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
---    FOREIGN KEY (friend_request) REFERENCES user (id)
---);

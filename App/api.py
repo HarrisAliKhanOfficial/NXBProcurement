@@ -64,14 +64,16 @@ def get_auth_token(user=None):
 
 def encode_token(user_id):
     try:
-
         payload = {
             'exp': datetime.datetime.utcnow() + datetime.timedelta(days=0, seconds=1500),
             'iat': datetime.datetime.utcnow(),
             'sub': user_id
         }
         token = jwt.encode(payload, priv_key, algorithm='HS256')
-        return str(token.decode('utf-8'))
+        if isinstance(token, (bytes, bytearray)):
+            return token.decode('utf-8')
+        else:
+            return token
     except Exception as e:
         return e
 
@@ -298,7 +300,6 @@ def updateterminated(id=None):
 
 @bp.route('/updateProfile', methods=['PUT'])
 def update_profile():
-    print("EEEEEEEEEEEEEE")
     return update_user(g.user['id'])
 
 @bp.route('/updateUserAndStaff/<key>', methods=['PUT'])
@@ -310,23 +311,18 @@ def update_user(user_id):
     conn, cur = conn_curr()
     content = flask.request.get_json()
     json_list = []
-
     name = content['name']
     phone = content['phone']
     role_id = content.get("role_id")
-
     image_id = uuid.uuid4()
     image_path = user_id
-
     user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
     try:
         image = request.json.get('image')
         data = image.split(';base64,')
         image = data[-1]
         ext = data[0].split('image/')[-1]
-
         save_image_bs64(image, ext, image_path)
-
         try:
             conn.execute(
                 'UPDATE images set id=?, url=?, user_id=?,created_at=?',
@@ -334,7 +330,6 @@ def update_user(user_id):
                     datetime.datetime.now())
             )
             conn.commit()
-
         except:
             conn.execute('INSERT INTO images (id, url, user_id,created_at)'
             ' VALUES (?, ?, ?, ?)',(str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
@@ -343,42 +338,30 @@ def update_user(user_id):
 
     except :
         print("No image provided")
-
-
     if g.user['role_id'] ==1:
         conn.execute('UPDATE user set name=?,phone=?,role_id=?  where id=? ', (name, phone, role_id,user_id,))
     else:
         conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone,user_id,))
     conn.commit()
-
     user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
     json_list.append(user)
-
     return jsonify(json_list)
 
 
 @bp.route('/deleteuser', methods=['DELETE'])
 def deletex():
-
     content = flask.request.get_json()
-
     json_list = []
-
     conn, cur = conn_curr()
-
     email = content['email']
-
     user_id = content['id']
-
     try:
         conn.execute('DELETE FROM user where email=?', (email,))
         conn.commit()
     except:
         conn.execute('DELETE FROM user where id=?', (user_id,))
         conn.commit()
-
     json_list.append('The user has been deleted with the email {0}'.format(email))
-
     return jsonify(json_list)
 
 
@@ -468,7 +451,7 @@ def login():
                                    (email,)).fetchone()
                 token = encode_token(user['id'])
                 user.pop("password")
-                data = {"user": user, "token": token, "success": True, }
+                data = {"user": user, "token": token, "success": True}
                 return jsonify(data)
 
 
@@ -527,80 +510,58 @@ def create_request():
                             (request_id,)).fetchall()
         requests["items"] = items
         return jsonify([requests])
-
+    return jsonify("Bitach")
 
 @bp.route('/userRequests', methods=['GET'])
 def user_requests():
-    if request.method == "GET" and g.user['role_id'] == 3:
+    if request.method == "GET" and g.user['role_id'] == [2, 3]:
         conn, cur = conn_curr()
         total_request = cur.execute('SELECT * from request where user_id=? ',(g.user['id'],)).fetchall()
-        for i in range(len(total_request)):
-            items = cur.execute('SELECT * from items where request_id=? ',(total_request[i]['_id'],)).fetchall()
-            total_request[i]['items'] = items
-        return jsonify(total_request)
+        return jsonify(attach_items_to_request(total_request))
+
+
+def attach_items_to_request(table, total_request):
+    conn, cur = conn_curr()
+    for i in range(len(total_request)):
+        items = cur.execute(f"SELECT * from {table} where request_id=? ",(total_request[i]['_id'],)).fetchall()
+        total_request[i][table] = items
+    return total_request
+
+
 
 @bp.route('/user', methods=['GET'])
 def user():
     return jsonify({"data":g.user})
 
 
-@bp.route('/process-requests/request-details?requestId=<int:request_id>', methods=['POST', 'GET'])
+@bp.route('/requests/<request_id>', methods=['GET'])
+@bp.route('/assignrequests/<request_id>', methods=['POST'])
 def assign_request(request_id=None):
+    conn, cur = conn_curr()
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         staff_id = content['staff_id']
-
-        request_id = request_id
-
-        json_list = []
-
-        conn.execute('UPDATE request set staff_id=?, status=? where id=?', (staff_id, 'Processing', request_id,))
+        conn.execute('UPDATE request set staff_id=?, status=? where _id=?', (staff_id, 'Processing', request_id,))
         conn.commit()
-        user = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchall()
-        json_list.append(user)
-
-        return jsonify(json_list)
-
+        requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id', (request_id,)).fetchone()
+        return jsonify({"request": requests, "message":"Success"})
     else:
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
-        request_id = content['id']
-
-        items = cur.execute('SELECT * from items where request_id=?', (request_id,)).fetchall()
-
-        return jsonify(items)
+        requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id', (request_id,)).fetchone()
+        requests = attach_items_to_request('items', [requests])[0]
+        return jsonify(requests)
 
 
 @bp.route('/new-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
 def read_request(id=None):
+    conn, cur = conn_curr()
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         request_id = content['id']
-
-        json_list = []
-
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Pending"',
                            (request_id,)).fetchone()
-
-        json_list.append(user)
-
-        return jsonify(json_list)
-
+        return jsonify(user)
     else:
-
-        conn, cur = conn_curr()
-
         items = cur.execute('SELECT * from items,request where items.request_id=request._id and '
                             'request.status="Pending" or request.status="Quotes Added" ').fetchall()
         return jsonify(items)
@@ -635,32 +596,29 @@ def approved_request(id=None):
         return jsonify(items)
 
 
-@bp.route('/createquotes/<string:request_id>', methods=['POST'])
+@bp.route('/uploadQuotesByStaff/<request_id>', methods=['POST'])
 def create_quote(request_id=None):
+    conn, cur = conn_curr()
     if request.method == "POST" and g.user['role_id'] == 2:
-
-        conn, cur = conn_curr()
-
-        if 'file' not in request.files:
-            return jsonify('No Quote has been added')
-
+        if 'files' not in request.files:
+            return jsonify({"files": ["The files field is required."]}), 422
         files = request.files.getlist("files")
-
         for file in files:
             if file and allowed_file(file.filename):
-                file.save(os.path.join(UPLOAD_FOLDER, secure_filename(file.filename)))
-
+                file_name = str(file.filename).split(".")
+                file_name = "."+file_name[-1]
+                image_id = str(uuid.uuid4())
+                file.save(os.path.join(UPLOAD_FOLDER, image_id+file_name))
                 conn.execute(
                     'INSERT INTO quotes (id, path, request_id,status,created_at)'
                     ' VALUES (?, ?, ?, ?,?)',
-                    (str(uuid.uuid4()), os.path.join(UPLOAD_FOLDER, secure_filename(file.filename)), request_id,
+                    (image_id, os.path.join(UPLOAD_FOLDER,image_id+file_name), request_id,
                      "Quotes "
                      "Added",
                      datetime.datetime.now())
                 )
                 conn.commit()
-
-        return jsonify("Quote has been added")
+        return jsonify({"Message": "Success"}), 201
 
 
 @bp.route('/allquotes', methods=['GET'])
@@ -721,36 +679,15 @@ def all_quotes_verified(id=None):
             return jsonify(json_list)
 
 
-@bp.route('/approvequote', methods=['POST', 'GET'])
+@bp.route('/approvedquote', methods=['POST'])
 def approve_quote():
-    if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
-        content = flask.request.get_json()
-
-        request_id = content['id']
-
-        json_list = []
-
-        conn.execute('UPDATE quotes status=? where request_id=?', ('Approved', request_id,))
-        conn.commit()
-        user = cur.execute('SELECT * from quotes where request_id=?', (request_id,)).fetchone()
-        json_list.append(user)
-
-        return jsonify(json_list)
-
-    else:
-
-        conn, cur = conn_curr()
-
-        content = flask.request.get_json()
-
-        request_id = content['id']
-
-        items = cur.execute('SELECT * from quotes where request_id=?', (request_id,)).fetchall()
-
-        return jsonify(items)
+    conn, cur = conn_curr()
+    content = flask.request.get_json()
+    quote_id = content['quote_id']
+    conn.execute("UPDATE quotes set status=? where id=? and status=?",("Approved",quote_id,"Quotes Added"))
+    conn.commit()
+    quote = cur.execute('SELECT * from quotes where id=?', (quote_id,)).fetchone()
+    return jsonify({"Message":"Success", "quote": quote})
 
 
 @bp.route('/createordersfromstaff', methods=['POST'])
@@ -851,7 +788,7 @@ def approve_orderfinance(order_id=None):
 
         json_list = []
 
-        conn.execute('UPDATE orders is_read=? where id=? and is_sign=True ', (is_read, order_id,))
+        conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
         json_list.append(user)
@@ -867,33 +804,24 @@ def approve_orderfinance(order_id=None):
         return jsonify(orders)
 
 
-@bp.route('/approveorderfrommanager', methods=['POST', 'GET'])
+@bp.route('/allUnsignedOrders')
+@bp.route('/approveorderfrommanager', methods=['POST', "GET"])
 def approve_ordermanager():
+    conn, cur = conn_curr()
+    if g.user['role_id'] not in [1]:
+        return jsonify("Unauthorized user"), 401
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         order_id = content['order_id']
-
         comment = content['comment']
-
         json_list = []
-
-        conn.execute('UPDATE orders is_sign=?, comment=?  where id=?', (True, comment, order_id,))
+        conn.execute('UPDATE orders set is_sign=?, comment=?  where id=?', (True, comment, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
         json_list.append(user)
-
         return jsonify(json_list)
-
     else:
-
-        conn, cur = conn_curr()
-
         orders = cur.execute('SELECT * from orders where is_sign=False ').fetchall()
-
         return jsonify(orders)
 
 
@@ -913,39 +841,45 @@ def dashboard():
 
 @bp.route('/totalrequests', methods=['GET'])
 def total_request():
-    conn, cur = conn_curr()
-
-    total_request = cur.execute('SELECT * from request').fetchall()
-
-    return jsonify(total_request)
+    return jsonify(get_request())
 
 
 @bp.route('/totalrequestscheck', methods=['GET'])
 def total_request_check():
     conn, cur = conn_curr()
-
-    # total_request = cur.execute('SELECT * from request where user_id=? ',(g.user['id'],)).fetchall()
-    # items = cur.execute('SELECT * from items where request_id=? ',(total_request['_id'],)).fetchall()
-
     total_request = cur.execute('SELECT * from request,items where user_id=? and items.request_id=request._id ',
                                 (g.user['id'],)).fetchall()
-
     return jsonify(total_request)
 
 
-@bp.route('/newrequests', methods=['GET'])
+@bp.route('/allnewrequests', methods=['GET'])
 def new_total_request():
-    conn, cur = conn_curr()
-
-    new_request = cur.execute('SELECT * from request where request.status="Pending"').fetchall()
-
-    return jsonify(new_request)
+    status = 'Pending'
+    processing = get_request(status)
+    return jsonify('items', attach_items_to_request(processing))
 
 
-@bp.route('/processingrequests', methods=['GET'])
+@bp.route('/allinprocessrequests', methods=['GET'])
 def processing_total_request():
+    status = 'Processing'
+    processing = get_request(status)
+    return jsonify('items', attach_items_to_request(processing))
+
+
+def get_request(status=None):
     conn, cur = conn_curr()
+    query = "SELECT * from request "
+    if status:
+        query = query + f" where request.status = '{status}'"
+    return cur.execute(query).fetchall()
 
-    processing_request = cur.execute('SELECT * from request where request.status="Processing"').fetchall()
 
-    return jsonify(processing_request)
+@bp.route('/staffnewrequests',methods=['GET'])
+def staff_request():
+    conn, cur = conn_curr()
+    all_staff_requests = cur.execute('SELECT * from request where staff_id=? and status="Processing"', (g.user['id'],)).fetchall()
+    items_attached = attach_items_to_request('items', all_staff_requests)
+    quotes_attached = attach_items_to_request('quotes', items_attached)
+    return jsonify(quotes_attached)
+
+
