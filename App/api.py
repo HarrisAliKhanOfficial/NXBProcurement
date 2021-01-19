@@ -431,18 +431,18 @@ def login():
         content = flask.request.get_json()
         conn, cur = conn_curr()
 
-        email = content['email']
-        password = content['password']
+        email = content.get('email')
+        password = content.get('password')
 
         if email is None or password is None or id is None:
             return jsonify("Email or password cannot be null")
 
         else:
             pass_check = cur.execute('SELECT * from user where user.email=?', (email,)).fetchone()
-            if not check_password_hash(pass_check['password'], password):
-                return jsonify("Password Incorrect")
-            elif pass_check['is_verified'] != 1:
+            if not pass_check:
                 return jsonify('Please verify your email address')
+            elif not check_password_hash(pass_check['password'], password):
+                return jsonify("Password Incorrect")
             else:
                 user = cur.execute("SELECT * from user WHERE email=?",
                                    (email,)).fetchone()
@@ -703,7 +703,7 @@ def create_orders_from_staff():
     else:
         is_cash = True
 
-    if 'file' not in request.files:
+    if 'files' not in request.files:
         return jsonify('No Quote has been added')
 
     files = request.files.getlist("files")
