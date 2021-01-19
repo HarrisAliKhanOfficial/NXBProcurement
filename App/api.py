@@ -740,7 +740,6 @@ def approve_orderfinance(order_id=None):
         order_id = order_id
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
-        user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
         return jsonify({"Message":"Order marked as read."})
     else:
         orders = cur.execute('SELECT * from orders where is_sign=True').fetchall()
