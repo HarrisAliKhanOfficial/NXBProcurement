@@ -567,7 +567,7 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])     # get specific request
+@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])  # get specific request
 def approved_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
@@ -600,9 +600,9 @@ def create_quote(request_id=None):
                 'INSERT INTO quotes (id, path, request_id,status,created_at)'
                 ' VALUES (?, ?, ?, ?,?)',
                 (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
-                    "Quotes "
-                    "Added",
-                    datetime.datetime.now())
+                 "Quotes "
+                 "Added",
+                 datetime.datetime.now())
             )
             conn.commit()
         return jsonify({"Message": "Success"}), 201
@@ -697,7 +697,7 @@ def create_orders_from_staff():
     total = content.get('total')
 
     if not items_array or not request_id or not total:
-        return jsonify("Missing arguments"), 422 
+        return jsonify("Missing arguments"), 422
 
     order_id = str(uuid.uuid4())
 
@@ -708,23 +708,24 @@ def create_orders_from_staff():
         file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
         conn.execute('INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
-                         (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)) , order_id ,datetime.datetime.now() ,))
+                     ' VALUES (?, ?, ?, ?)',
+                     (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
+                      datetime.datetime.now(),))
         conn.commit()
 
     conn.execute(
-            'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
-            'is_read) '
-            ' VALUES (?,?,?,?,?,?,?,?,?)',
-            (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
-                is_cash, False)
-        )
+        'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
+        'is_read) '
+        ' VALUES (?,?,?,?,?,?,?,?,?)',
+        (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
+         is_cash, False)
+    )
     conn.commit()
     conn.execute('UPDATE request set status="Order Created", order_created=True where _id=? ', (request_id,))
     conn.commit()
-    
-    order = cur.execute("SELECT * from orders, request where orders.request_id=?",(request_id,)).fetchone() 
-    images = cur.execute("SELECT images.url from images, orders where orders.id=images.user_id").fetchall() 
+
+    order = cur.execute("SELECT * from orders, request where orders.request_id=?", (request_id,)).fetchone()
+    images = cur.execute("SELECT images.url from images, orders where orders.id=images.user_id").fetchall()
     order['images'] = images
 
     return jsonify([order])
@@ -740,7 +741,7 @@ def approve_orderfinance(order_id=None):
         order_id = order_id
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
-        return jsonify({"Message":"Order marked as read."})
+        return jsonify({"Message": "Order marked as read."})
     else:
         orders = cur.execute('SELECT * from orders where is_sign=True').fetchall()
         return jsonify(orders)
