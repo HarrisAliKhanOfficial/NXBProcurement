@@ -430,19 +430,16 @@ def login():
     if request.method == "POST":
         content = flask.request.get_json()
         conn, cur = conn_curr()
-
-        email = content['email']
-        password = content['password']
-
+        email = content.get('email')
+        password = content.get('password')
         if email is None or password is None or id is None:
-            return jsonify("Email or password cannot be null")
-
+            return jsonify("Email or password cannot be null"), 401
         else:
             pass_check = cur.execute('SELECT * from user where user.email=?', (email,)).fetchone()
-            if not check_password_hash(pass_check['password'], password):
-                return jsonify("Password Incorrect")
-            elif pass_check['is_verified'] != 1:
-                return jsonify('Please verify your email address')
+            if not pass_check :
+                return jsonify("Email or password dont't match."), 401
+            elif not check_password_hash(pass_check['password'], password):
+                return jsonify("Password Incorrect"), 401
             else:
                 user = cur.execute("SELECT * from user WHERE email=?",
                                    (email,)).fetchone()
@@ -529,6 +526,7 @@ def attach_items_to_request(table, total_request):
 
 @bp.route('/user', methods=['GET'])
 def user():
+    del g.user['password']
     return jsonify({"data": g.user})
 
 
@@ -568,29 +566,18 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/approved-requests', defaults={'id': None}, methods=['GET'])
+@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])     # get specific request
 def approved_request(id=None):
+    conn, cur = conn_curr()
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         request_id = content['id']
-
         json_list = []
-
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
                            (request_id,)).fetchall()
-
         json_list.append(user)
-
         return jsonify(json_list)
-
     else:
-
-        conn, cur = conn_curr()
-
         items = cur.execute('SELECT * from items,request where items.request_id=request._id and '
                             'request.status="Approved"').fetchall()
         return jsonify(items)
