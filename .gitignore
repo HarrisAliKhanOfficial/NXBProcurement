@@ -4,3 +4,4 @@
 /.vscode
 /App/apioriginal.py
 /App/uploads
+/App/__pycache__

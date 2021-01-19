@@ -430,7 +430,6 @@ def login():
     if request.method == "POST":
         content = flask.request.get_json()
         conn, cur = conn_curr()
-
         email = content.get('email')
         password = content.get('password')
 
@@ -477,7 +476,7 @@ def create_request():
             conn.execute(
                 'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
                 'VALUES (?,?,?,?,?,?)',
-                (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
+                (str(request_id), user_id, datetime.datetime.now(), status, False, staff_id))
             conn.commit()
         else:
             staff_id = user["id"]
@@ -593,20 +592,19 @@ def create_quote(request_id=None):
             return jsonify({"files": ["The files field is required."]}), 422
         files = request.files.getlist("files")
         for file in files:
-            if file and allowed_file(file.filename):
-                file_name = str(file.filename).split(".")
-                file_name = "." + file_name[-1]
-                image_id = str(uuid.uuid4())
-                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
-                conn.execute(
-                    'INSERT INTO quotes (id, path, request_id,status,created_at)'
-                    ' VALUES (?, ?, ?, ?,?)',
-                    (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
-                     "Quotes "
-                     "Added",
-                     datetime.datetime.now())
-                )
-                conn.commit()
+            file_name = str(file.filename).split(".")
+            file_name = "." + file_name[-1]
+            image_id = str(uuid.uuid4())
+            file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+            conn.execute(
+                'INSERT INTO quotes (id, path, request_id,status,created_at)'
+                ' VALUES (?, ?, ?, ?,?)',
+                (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
+                    "Quotes "
+                    "Added",
+                    datetime.datetime.now())
+            )
+            conn.commit()
         return jsonify({"Message": "Success"}), 201
 
 
@@ -679,85 +677,78 @@ def approve_quote():
     return jsonify({"Message": "Success", "quote": quote})
 
 
-@bp.route('/createordersfromstaff', methods=['POST'])
+@bp.route('/createOrder', methods=['POST'])
 @bp.route('/createpurchaseorder', methods=['POST'])
 def create_orders_from_staff():
     conn, cur = conn_curr()
-
     request_name = request.url.split("/")[-1]
-
-    if request_name == 'createordersfromstaff':
+    if request_name == 'createOrder':
         is_cash = False
-
     else:
         is_cash = True
-
     if 'files' not in request.files:
         return jsonify('No Quote has been added')
 
     files = request.files.getlist("files")
     content = request.form
 
-    items_array = content['items']
+    items_array = content.get('items')
+    request_id = content.get('request_id')
+    total = content.get('total')
 
-    request_id = content['request_id']
+    if not items_array or not request_id or not total:
+        return jsonify("Missing arguments"), 422 
 
-    total = content['total']
+    order_id = str(uuid.uuid4())
 
     for file in files:
-        if file and allowed_file(file.filename):
-            file_name = str(file.filename).split(".")
-            file_name = "." + file_name[-1]
-            image_id = str(uuid.uuid4())
-            file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+        file_name = str(file.filename).split(".")
+        file_name = "." + file_name[-1]
+        image_id = str(uuid.uuid4())
+        file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
-            conn.execute(
-                'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                'is_read) '
-                ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
-                (image_id, str(items_array), request_id, total, g.user['id'], False,
-                 os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
-                 is_cash, False)
-            )
-            conn.commit()
-            conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
-            conn.commit()
+        conn.execute('INSERT INTO images (id, url, user_id,created_at)'
+                        ' VALUES (?, ?, ?, ?)',
+                         (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)) , order_id ,datetime.datetime.now() ,))
+        conn.commit()
 
-    return jsonify("Order has been added")
+    conn.execute(
+            'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
+            'is_read) '
+            ' VALUES (?,?,?,?,?,?,?,?,?)',
+            (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
+                is_cash, False)
+        )
+    conn.commit()
+    conn.execute('UPDATE request set status="Order Created", order_created=True where _id=? ', (request_id,))
+    conn.commit()
+    
+    order = cur.execute("SELECT * from orders, request where orders.request_id=?",(request_id,)).fetchone() 
+    images = cur.execute("SELECT images.url from images, orders where orders.id=images.user_id").fetchall() 
+    order['images'] = images
+
+    return jsonify([order])
 
 
-@bp.route('/approveorderfromstaff/<string:order_id>', methods=['POST', 'GET'])
+@bp.route('/signedOrderForFinance', methods=['GET'])
+@bp.route('/markAsRead/<order_id>', methods=['POST'])
 def approve_orderfinance(order_id=None):
+    conn, cur = conn_curr()
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         is_read = content['is_read']
-
         order_id = order_id
-
-        json_list = []
-
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
-        json_list.append(user)
-
-        return jsonify(json_list)
-
+        return jsonify({"Message":"Order marked as read."})
     else:
-
-        conn, cur = conn_curr()
-
         orders = cur.execute('SELECT * from orders where is_sign=True').fetchall()
-
         return jsonify(orders)
 
 
-@bp.route('/allUnsignedOrders')
-@bp.route('/approveorderfrommanager', methods=['POST', "GET"])
+@bp.route('/allUnsignedOrders', methods=['GET'])
+@bp.route('/digitalSign', methods=['POST'])
 def approve_ordermanager():
     conn, cur = conn_curr()
     if g.user['role_id'] not in [1]:
@@ -775,7 +766,7 @@ def approve_ordermanager():
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
         json_list.append(user)
-        return jsonify(json_list)
+        return jsonify({"Message": "Success"}), 201
     else:
         orders = cur.execute('SELECT * from orders where is_sign=False ').fetchall()
         return jsonify(orders)
