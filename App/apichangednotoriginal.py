@@ -8,6 +8,7 @@ import jwt
 from flask import Blueprint, request, url_for, jsonify, make_response, g
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 from App import UPLOAD_FOLDER, priv_key
 from . import db
@@ -44,7 +45,7 @@ def get_auth_token(user=None):
             auth_token = auth_header.split(" ")[1]
             resp = decode_token(auth_token)
             conn, cur = conn_curr()
-            user = cur.execute("SELECT * from user where id=?", (resp,)).fetchone()
+            user = cur.execute("SELECT * from user where id=%s", (resp,)).fetchone()
             responseObject = user
             g.user = responseObject
         except Exception as e:
@@ -94,15 +95,15 @@ def allowed_file(filename):
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@bp.route('api/email/verify?code=<string:code>')
+@bp.route('api/email/verify%scode=<string:code>')
 def email_verify(code=None):
     conn, cur = conn_curr()
     json_list = []
-    user = cur.execute("SELECT * from user where verification_code=?", (code,)).fetchone()
+    user = cur.execute("SELECT * from user where verification_code=%s", (code,)).fetchone()
 
-    conn.execute('UPDATE user set is_verified=?, verification_code where id = ?', (True, 0, user[id],))
+    conn.execute('UPDATE user set is_verified=%s, verification_code where id = %s', (True, 0, user[id],))
     conn.commit()
-    user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
+    user = cur.execute('SELECT * from user where id=%s', (id,)).fetchone()
     json_list.append(user)
 
     return jsonify(json_list)
@@ -113,9 +114,9 @@ def forget_password(email, verification):
     id = uuid.uuid4()
     verification_code = hash(datetime.datetime.now())
 
-    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+    user = cur.execute("SELECT * from user where email=%s", (email,)).fetchone()
 
-    conn.execute('INSERT INTO forgotpasswords (id,user_id,email,email_token,created_at) VALUES (?,?,?,?,?)',
+    conn.execute('INSERT INTO forgotpasswords (id,user_id,email,email_token,created_at) VALUES (%s,%s,%s,%s,%s)',
                  (id, user['id'], user['email'], verification_code, datetime.datetime.now(),))
     conn.commit()
 
@@ -123,7 +124,7 @@ def forget_password(email, verification):
                   sender='ashketchumreal4life@gmail.com',
                   recipients=[email]
                   )
-    msg.body = "Click the Link Below to Verify your Email and Activate your Account \n api/email/verify?code=" + str(
+    msg.body = "Click the Link Below to Verify your Email and Activate your Account \n api/email/verify%scode=" + str(
         verification_code) + ".updatewithpassword"
     mail.send(msg)
     print("Sent")
@@ -144,9 +145,9 @@ def change_password():
     password = content['password']
 
     if check_password_hash(g.user['password'], oldPassword):
-        conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password), g.user['id'],))
+        conn.execute('UPDATE user set password=%s where user.id=%s', (generate_password_hash(password), g.user['id'],))
         conn.commit()
-        user = cur.execute('SELECT * from user where id=?', (g.user['id'],)).fetchone()
+        user = cur.execute('SELECT * from user where id=%s', (g.user['id'],)).fetchone()
         json_list.append(user)
         return jsonify(json_list)
     else:
@@ -191,6 +192,8 @@ def allstaff():
 
 @bp.route('/allmembers')
 def allmembers():
+    diction = dict(request.headers)
+
     global roles
 
     conn, cur = conn_curr()
@@ -264,9 +267,9 @@ def updateactivation():
 
     id = content['id']
 
-    conn.execute('UPDATE user set status=? where id=?', (0, id,))
+    conn.execute('UPDATE user set status=%s where id=%s', (0, id,))
     conn.commit()
-    user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
+    user = cur.execute('SELECT * from user where id=%s', (id,)).fetchone()
     json_list.append(user)
 
     return jsonify(json_list)
@@ -282,11 +285,11 @@ def updateterminated(id=None):
 
     id = content['id']
 
-    conn.execute('UPDATE user set is_terminated=? where id=?', (1, id,))
+    conn.execute('UPDATE user set is_terminated=%s where id=%s', (1, id,))
 
     conn.commit()
 
-    user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
+    user = cur.execute('SELECT * from user where id=%s', (id,)).fetchone()
 
     json_list.append(user)
 
@@ -312,7 +315,7 @@ def update_user(user_id):
     role_id = content.get("role_id")
     image_id = uuid.uuid4()
     image_path = user_id
-    user = cur.execute("SELECT * from user where id=?", (user_id,)).fetchone()
+    user = cur.execute("SELECT * from user where id=%s", (user_id,)).fetchone()
     try:
         image = request.json.get('image')
         data = image.split(';base64,')
@@ -321,14 +324,14 @@ def update_user(user_id):
         save_image_bs64(image, ext, image_path)
         try:
             conn.execute(
-                'UPDATE images set id=?, url=?, user_id=?,created_at=?',
+                'UPDATE images set id=%s, url=%s, user_id=%s,created_at=%s',
                 (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
                  datetime.datetime.now())
             )
             conn.commit()
         except:
             conn.execute('INSERT INTO images (id, url, user_id,created_at)'
-                         ' VALUES (?, ?, ?, ?)',
+                         ' VALUES (%s, %s, %s, %s)',
                          (str(image_id), str(os.path.join(UPLOAD_FOLDER, (image_path + f".{ext}"))), user_id,
                           datetime.datetime.now()))
             conn.commit()
@@ -336,11 +339,11 @@ def update_user(user_id):
     except:
         print("No image provided")
     if g.user['role_id'] == 1:
-        conn.execute('UPDATE user set name=?,phone=?,role_id=?  where id=? ', (name, phone, role_id, user_id,))
+        conn.execute('UPDATE user set name=%s,phone=%s,role_id=%s  where id=%s ', (name, phone, role_id, user_id,))
     else:
-        conn.execute('UPDATE user set name=?,phone=?  where id=? ', (name, phone, user_id,))
+        conn.execute('UPDATE user set name=%s,phone=%s  where id=%s ', (name, phone, user_id,))
     conn.commit()
-    user = cur.execute('SELECT * from user where id=?', (user_id,)).fetchone()
+    user = cur.execute('SELECT * from user where id=%s', (user_id,)).fetchone()
     json_list.append(user)
     return jsonify(json_list)
 
@@ -353,10 +356,10 @@ def deletex():
     email = content['email']
     user_id = content['id']
     try:
-        conn.execute('DELETE FROM user where email=?', (email,))
+        conn.execute('DELETE FROM user where email=%s', (email,))
         conn.commit()
     except:
-        conn.execute('DELETE FROM user where id=?', (user_id,))
+        conn.execute('DELETE FROM user where id=%s', (user_id,))
         conn.commit()
     json_list.append('The user has been deleted with the email {0}'.format(email))
     return jsonify(json_list)
@@ -378,13 +381,13 @@ def register():
 
         if name is None and email is None and password is None and contact is None:
             return jsonify("Email or password cannot be null")
-        elif cur.execute('SELECT id from user where  email=?', (email,)).fetchone() is not None:
+        elif cur.execute('SELECT id from user where  email=%s', (email,)).fetchone() is not None:
             return jsonify("Id already exists")
         else:
             conn.execute(
                 'INSERT INTO user(id,name,email,phone,password, role_id, created_at, verification_code, status, '
                 'is_verified) '
-                'VALUES (?,?,?,?,?,?,?,?,?,?)',
+                'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)',
                 (str(id), name, email, contact, generate_password_hash(password), role, created_at, verification_code,
                  True, True,))
             conn.commit()
@@ -396,10 +399,10 @@ def register():
 
                 if image != "NULL":
                     save_image_bs64(image, ext, str(id))
-                    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                    user = cur.execute("SELECT * from user where email=%s", (email,)).fetchone()
                     conn.execute(
                         'INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
+                        ' VALUES (%s, %s, %s, %s)',
                         (str(id), str(os.path.join(UPLOAD_FOLDER, (str(id) + "." + str(ext)))), user['id'],
                          datetime.datetime.now())
                     )
@@ -408,7 +411,7 @@ def register():
                 print("Image not given")
 
                 # send_email(email, verification_code)
-            user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+            user = cur.execute("SELECT * from user where email=%s", (email,)).fetchone()
             del user['password']
 
             return jsonify({"status": "success", "data": user})
@@ -438,13 +441,13 @@ def login():
             return jsonify("Email or password cannot be null")
 
         else:
-            pass_check = cur.execute('SELECT * from user where user.email=?', (email,)).fetchone()
+            pass_check = cur.execute('SELECT * from user where user.email=%s', (email,)).fetchone()
             if not check_password_hash(pass_check['password'], password):
                 return jsonify("Password Incorrect")
             elif pass_check['is_verified'] != 1:
                 return jsonify('Please verify your email address')
             else:
-                user = cur.execute("SELECT * from user WHERE email=?",
+                user = cur.execute("SELECT * from user WHERE email=%s",
                                    (email,)).fetchone()
                 token = encode_token(user['id'])
                 user.pop("password")
@@ -477,7 +480,7 @@ def create_request():
             status = 'Pending'
             conn.execute(
                 'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-                'VALUES (?,?,?,?,?,?)',
+                'VALUES (%s,%s,%s,%s,%s,%s)',
                 (str(request_id), user_id, datetime.datetime.now(), status, None, staff_id))
             conn.commit()
         else:
@@ -485,7 +488,7 @@ def create_request():
             status = 'Processing'
             conn.execute(
                 'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-                'VALUES (?,?,?,?,?,?)',
+                'VALUES (%s,%s,%s,%s,%s,%s)',
                 (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
             conn.commit()
 
@@ -495,34 +498,33 @@ def create_request():
             description = content_items['description']
             quantity = content_items['quantity']
             items_id = uuid.uuid4()
-            requests = cur.execute("SELECT * from request WHERE _id=?",
+            requests = cur.execute("SELECT * from request WHERE _id=%s",
                                    (request_id,)).fetchone()
             print(requests)
             conn.execute(
                 'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
-                'VALUES (?,?,?,?,?,?,?)',
+                'VALUES (%s,%s,%s,%s,%s,%s,%s)',
                 (str(items_id), name, str(description), "0", requests['_id'], datetime.datetime.now(), quantity,))
             conn.commit()
-        items = cur.execute("SELECT * from items WHERE request_id=?",
+        items = cur.execute("SELECT * from items WHERE request_id=%s",
                             (request_id,)).fetchall()
         requests["items"] = items
         return jsonify([requests])
-    return jsonify("Not Authorized"), 401
+    return jsonify("Bitach")
 
 
 @bp.route('/userRequests', methods=['GET'])
 def user_requests():
-    if request.method == "GET" and g.user['role_id'] in [2, 3]:
+    if request.method == "GET" and g.user['role_id'] == [2, 3]:
         conn, cur = conn_curr()
-        total_request = cur.execute('SELECT * from request where user_id=? ', (g.user['id'],)).fetchall()
-        return jsonify(attach_items_to_request('items', total_request))
-    return jsonify("Not Authorized"), 401
+        total_request = cur.execute('SELECT * from request where user_id=%s ', (g.user['id'],)).fetchall()
+        return jsonify(attach_items_to_request(total_request))
 
 
 def attach_items_to_request(table, total_request):
     conn, cur = conn_curr()
     for i in range(len(total_request)):
-        items = cur.execute(f"SELECT * from {table} where request_id=? ", (total_request[i]['_id'],)).fetchall()
+        items = cur.execute(f"SELECT * from {table} where request_id=%s ", (total_request[i]['_id'],)).fetchall()
         total_request[i][table] = items
     return total_request
 
@@ -539,26 +541,26 @@ def assign_request(request_id=None):
     if request.method == 'POST':
         content = flask.request.get_json()
         staff_id = content['staff_id']
-        conn.execute('UPDATE request set staff_id=?, status=? where _id=?', (staff_id, 'Processing', request_id,))
+        conn.execute('UPDATE request set staff_id=%s, status=%s where _id=%s', (staff_id, 'Processing', request_id,))
         conn.commit()
-        requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
+        requests = cur.execute('SELECT request.*,user.name from request,user where _id=%s and request.staff_id=user.id',
                                (request_id,)).fetchone()
         return jsonify({"request": requests, "message": "Success"})
     else:
         content = flask.request.get_json()
-        requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
+        requests = cur.execute('SELECT request.*,user.name from request,user where _id=%s and request.staff_id=user.id',
                                (request_id,)).fetchone()
         requests = attach_items_to_request('items', [requests])[0]
         return jsonify(requests)
 
 
-@bp.route('/new-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
+@bp.route('/new-requests/request-details%srequestId=<int:id>', methods=['POST', 'GET'])
 def read_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
         content = flask.request.get_json()
         request_id = content['id']
-        user = cur.execute('SELECT * from items, request where request_id=? and request.status="Pending"',
+        user = cur.execute('SELECT * from items, request where request_id=%s and request.status="Pending"',
                            (request_id,)).fetchone()
         return jsonify(user)
     else:
@@ -567,7 +569,7 @@ def read_request(id=None):
         return jsonify(items)
 
 
-@bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
+@bp.route('/approved-requests/request-details%srequestId=<int:id>', methods=['POST'])
 @bp.route('/approved-requests', defaults={'id': None}, methods=['GET'])
 def approved_request(id=None):
     if request.method == 'POST':
@@ -580,7 +582,7 @@ def approved_request(id=None):
 
         json_list = []
 
-        user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
+        user = cur.execute('SELECT * from items, request where request_id=%s and request.status="Approved"',
                            (request_id,)).fetchall()
 
         json_list.append(user)
@@ -611,7 +613,7 @@ def create_quote(request_id=None):
                 file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
                 conn.execute(
                     'INSERT INTO quotes (id, path, request_id,status,created_at)'
-                    ' VALUES (?, ?, ?, ?,?)',
+                    ' VALUES (%s, %s, %s, %s,%s)',
                     (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
                      "Quotes "
                      "Added",
@@ -633,7 +635,7 @@ def all_quotes():
     return jsonify(json_list)
 
 
-@bp.route('orders/order-details?orderId=<int:id>', methods=['POST', 'GET'])
+@bp.route('orders/order-details%sorderId=<int:id>', methods=['POST', 'GET'])
 @bp.route('/orders', defaults={'id': None}, methods=['GET'])
 def all_quotes_verified(id=None):
     if id is None:
@@ -660,9 +662,9 @@ def all_quotes_verified(id=None):
 
             json_list = []
 
-            conn.execute('UPDATE orders is_sign=?, comment=?  where id=?', (True, comment, order_id,))
+            conn.execute('UPDATE orders is_sign=%s, comment=%s  where id=%s', (True, comment, order_id,))
             conn.commit()
-            user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
+            user = cur.execute('SELECT * from orders where id=%s', (order_id,)).fetchone()
             json_list.append(user)
 
             return jsonify(json_list)
@@ -673,7 +675,7 @@ def all_quotes_verified(id=None):
 
             json_list = []
 
-            user = cur.execute('SELECT * from orders where id=?', (id)).fetchone()
+            user = cur.execute('SELECT * from orders where id=%s', (id)).fetchone()
             json_list.append(user)
 
             return jsonify(json_list)
@@ -684,9 +686,9 @@ def approve_quote():
     conn, cur = conn_curr()
     content = flask.request.get_json()
     quote_id = content['quote_id']
-    conn.execute("UPDATE quotes set status=? where id=? and status=?", ("Approved", quote_id, "Quotes Added"))
+    conn.execute("UPDATE quotes set status=%s where id=%s and status=%s", ("Approved", quote_id, "Quotes Added"))
     conn.commit()
-    quote = cur.execute('SELECT * from quotes where id=?', (quote_id,)).fetchone()
+    quote = cur.execute('SELECT * from quotes where id=%s', (quote_id,)).fetchone()
     return jsonify({"Message": "Success", "quote": quote})
 
 
@@ -719,14 +721,13 @@ def create_orders_from_staff():
 
                 conn.execute(
                     'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                    'is_read) '
-                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
+                    'is_read, '
+                    'comment) '
+                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s,%s)',
                     (image_id, str(items_array), request_id, total, g.user['id'], False,
                      os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
                      is_cash, False)
                 )
-                conn.commit()
-                conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
                 conn.commit()
 
         return jsonify("Order has been added")
@@ -746,8 +747,6 @@ def create_purchase_order():
 
         items_array = content['items']
 
-        request_id = content['request_id']
-
         total = content['total']
 
         ### If No request Id then is_cash is 0
@@ -755,21 +754,16 @@ def create_purchase_order():
 
         for file in files:
             if file and allowed_file(file.filename):
-                file_name = str(file.filename).split(".")
-                file_name = "." + file_name[-1]
-                image_id = str(uuid.uuid4())
-                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+                file.save(os.path.join(UPLOAD_FOLDER, secure_filename(file.filename)))
 
                 conn.execute(
-                    'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                    'is_read) '
+                    'INSERT INTO orders (id, items, total, staff_id, is_sign ,path,created_at, is_cash, is_read, '
+                    'comment) '
                     ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
-                    (image_id, str(items_array), request_id, total, g.user['id'], False,
-                     os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
+                    (str(uuid.uuid4()), str(items_array), total, user['id'], False,
+                     os.path.join(UPLOAD_FOLDER + "/Orders", secure_filename(file.filename)), datetime.datetime.now(),
                      is_cash, False)
                 )
-                conn.commit()
-                conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
                 conn.commit()
 
         return jsonify("Purchase Order has been added")
@@ -781,6 +775,8 @@ def approve_orderfinance(order_id=None):
 
         conn, cur = conn_curr()
 
+        diction = dict(request.headers)
+
         content = flask.request.get_json()
 
         is_read = content['is_read']
@@ -789,9 +785,9 @@ def approve_orderfinance(order_id=None):
 
         json_list = []
 
-        conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
+        conn.execute('UPDATE orders set is_read=%s where id=%s and is_sign=True ', (is_read, order_id,))
         conn.commit()
-        user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
+        user = cur.execute('SELECT * from orders where id=%s', (order_id,)).fetchone()
         json_list.append(user)
 
         return jsonify(json_list)
@@ -814,15 +810,11 @@ def approve_ordermanager():
     if request.method == 'POST':
         content = flask.request.get_json()
         order_id = content['order_id']
-        try:
-            comment = content['comment']
-        except:
-            comment = ''
-
+        comment = content['comment']
         json_list = []
-        conn.execute('UPDATE orders set is_sign=?, comment=?  where id=?', (True, comment, order_id,))
+        conn.execute('UPDATE orders set is_sign=%s, comment=%s  where id=%s', (True, comment, order_id,))
         conn.commit()
-        user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
+        user = cur.execute('SELECT * from orders where id=%s', (order_id,)).fetchone()
         json_list.append(user)
         return jsonify(json_list)
     else:
@@ -833,22 +825,26 @@ def approve_ordermanager():
 @bp.route('/dashboard', methods=['GET'])
 def dashboard():
     conn, cur = conn_curr()
+
     count_total_request = cur.execute('SELECT COUNT(*) from request').fetchall()
+
     count_new_request = cur.execute('SELECT COUNT(*) from request where request.status="Pending"').fetchall()
+
     count_processing_request = cur.execute('SELECT COUNT(*) from request where request.status="Processing"').fetchall()
+
     return jsonify({'totalRequests': count_total_request[0]["COUNT(*)"], 'pending': count_new_request[0]["COUNT(*)"],
                     'waitingForApproval': count_processing_request[0]["COUNT(*)"], 'success': True})
 
 
 @bp.route('/totalrequests', methods=['GET'])
 def total_request():
-    return jsonify(pms_requests())
+    return jsonify(get_request())
 
 
 @bp.route('/totalrequestscheck', methods=['GET'])
 def total_request_check():
     conn, cur = conn_curr()
-    total_request = cur.execute('SELECT * from request,items where user_id=? and items.request_id=request._id ',
+    total_request = cur.execute('SELECT * from request,items where user_id=%s and items.request_id=request._id ',
                                 (g.user['id'],)).fetchall()
     return jsonify(total_request)
 
@@ -856,38 +852,30 @@ def total_request_check():
 @bp.route('/allnewrequests', methods=['GET'])
 def new_total_request():
     status = 'Pending'
-    processing = pms_requests({"status": status})
-    items_attached = attach_items_to_request('items', processing)
-    quotes_attached = attach_items_to_request('quotes', items_attached)
-    return jsonify(items_attached)
+    processing = get_request(status)
+    return jsonify('items', attach_items_to_request(processing))
 
 
 @bp.route('/allinprocessrequests', methods=['GET'])
 def processing_total_request():
     status = 'Processing'
-    processing = pms_requests({"status": status})
-    items_attached = attach_items_to_request('items', processing)
-    quotes_attached = attach_items_to_request('quotes', items_attached)
-    return jsonify(quotes_attached)
+    processing = get_request(status)
+    return jsonify('items', attach_items_to_request(processing))
 
 
-def pms_requests(params_dict=None, table="request"):
+def get_request(status=None):
     conn, cur = conn_curr()
-    query = f"SELECT * from {table} "
-    if params_dict:
-        query += "where "
-        for i in params_dict:
-            query += f"{i} = '{params_dict[i]}' and "
-        query = query[:-4]
-    print(query)
+    query = "SELECT * from request "
+    if status:
+        query = query + f" where request.status = '{status}'"
     return cur.execute(query).fetchall()
 
 
 @bp.route('/staffnewrequests', methods=['GET'])
 def staff_request():
     conn, cur = conn_curr()
-    status = 'Processing'
-    all_staff_requests = pms_requests({"status": status, "staff_id": g.user['id']})
+    all_staff_requests = cur.execute('SELECT * from request where staff_id=%s and status="Processing"',
+                                     (g.user['id'],)).fetchall()
     items_attached = attach_items_to_request('items', all_staff_requests)
     quotes_attached = attach_items_to_request('quotes', items_attached)
     return jsonify(quotes_attached)
