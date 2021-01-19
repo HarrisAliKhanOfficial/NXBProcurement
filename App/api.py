@@ -691,88 +691,50 @@ def approve_quote():
 
 
 @bp.route('/createordersfromstaff', methods=['POST'])
+@bp.route('/createpurchaseorder', methods=['POST'])
 def create_orders_from_staff():
-    if request.method == "POST":
+    conn, cur = conn_curr()
 
-        conn, cur = conn_curr()
+    request_name = request.url.split("/")[-1]
 
-        if 'file' not in request.files:
-            return jsonify('No Quote has been added')
-
-        files = request.files.getlist("files")
-        content = request.form
-
-        items_array = content['items']
-
-        request_id = content['request_id']
-
-        total = content['total']
-
+    if request_name == 'createordersfromstaff':
         is_cash = False
 
-        for file in files:
-            if file and allowed_file(file.filename):
-                file_name = str(file.filename).split(".")
-                file_name = "." + file_name[-1]
-                image_id = str(uuid.uuid4())
-                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
-
-                conn.execute(
-                    'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                    'is_read) '
-                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
-                    (image_id, str(items_array), request_id, total, g.user['id'], False,
-                     os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
-                     is_cash, False)
-                )
-                conn.commit()
-                conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
-                conn.commit()
-
-        return jsonify("Order has been added")
-
-
-@bp.route('/createpurchaseorder', methods=['POST'])
-def create_purchase_order():
-    if request.method == "POST":
-
-        conn, cur = conn_curr()
-
-        if 'files' not in request.files:
-            return jsonify('No Quote has been added')
-
-        files = request.files.getlist("files")
-        content = request.form
-
-        items_array = content['items']
-
-        request_id = content['request_id']
-
-        total = content['total']
-
-        ### If No request Id then is_cash is 0
+    else:
         is_cash = True
 
-        for file in files:
-            if file and allowed_file(file.filename):
-                file_name = str(file.filename).split(".")
-                file_name = "." + file_name[-1]
-                image_id = str(uuid.uuid4())
-                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+    if 'file' not in request.files:
+        return jsonify('No Quote has been added')
 
-                conn.execute(
-                    'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                    'is_read) '
-                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
-                    (image_id, str(items_array), request_id, total, g.user['id'], False,
-                     os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
-                     is_cash, False)
-                )
-                conn.commit()
-                conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
-                conn.commit()
+    files = request.files.getlist("files")
+    content = request.form
 
-        return jsonify("Purchase Order has been added")
+    items_array = content['items']
+
+    request_id = content['request_id']
+
+    total = content['total']
+
+    for file in files:
+        if file and allowed_file(file.filename):
+            file_name = str(file.filename).split(".")
+            file_name = "." + file_name[-1]
+            image_id = str(uuid.uuid4())
+            file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+
+            conn.execute(
+                'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
+                'is_read) '
+                ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
+                (image_id, str(items_array), request_id, total, g.user['id'], False,
+                 os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
+                 is_cash, False)
+            )
+            conn.commit()
+            conn.execute('UPDATE request set status="Order Created" where _id=? ', (request_id,))
+            conn.commit()
+
+    return jsonify("Order has been added")
 
 
 @bp.route('/approveorderfromstaff/<string:order_id>', methods=['POST', 'GET'])
@@ -885,7 +847,6 @@ def pms_requests(params_dict=None):
 
 @bp.route('/staffnewrequests', methods=['GET'])
 def staff_request():
-    conn, cur = conn_curr()
     status = 'Processing'
     all_staff_requests = pms_requests({"status": status, "staff_id": g.user['id']})
     items_attached = attach_items_to_request('items', all_staff_requests)
