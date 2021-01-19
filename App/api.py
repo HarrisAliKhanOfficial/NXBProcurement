@@ -8,9 +8,10 @@ import jwt
 from flask import Blueprint, request, url_for, jsonify, make_response, g
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
-
+import json
 from App import UPLOAD_FOLDER, priv_key
 from . import db
+from App import sign_image
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 bp = Blueprint('api', __name__, url_prefix="/api")
@@ -567,7 +568,7 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])  # get specific request
+@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])     # get specific request
 def approved_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
@@ -600,9 +601,9 @@ def create_quote(request_id=None):
                 'INSERT INTO quotes (id, path, request_id,status,created_at)'
                 ' VALUES (?, ?, ?, ?,?)',
                 (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
-                 "Quotes "
-                 "Added",
-                 datetime.datetime.now())
+                    "Quotes "
+                    "Added",
+                    datetime.datetime.now())
             )
             conn.commit()
         return jsonify({"Message": "Success"}), 201
@@ -697,7 +698,7 @@ def create_orders_from_staff():
     total = content.get('total')
 
     if not items_array or not request_id or not total:
-        return jsonify("Missing arguments"), 422
+        return jsonify("Missing arguments"), 422 
 
     order_id = str(uuid.uuid4())
 
@@ -708,42 +709,52 @@ def create_orders_from_staff():
         file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
         conn.execute('INSERT INTO images (id, url, user_id,created_at)'
-                     ' VALUES (?, ?, ?, ?)',
-                     (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
-                      datetime.datetime.now(),))
+                        ' VALUES (?, ?, ?, ?)',
+                         (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)) , order_id ,datetime.datetime.now() ,))
         conn.commit()
 
     conn.execute(
-        'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
-        'is_read) '
-        ' VALUES (?,?,?,?,?,?,?,?,?)',
-        (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
-         is_cash, False)
-    )
+            'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
+            'is_read) '
+            ' VALUES (?,?,?,?,?,?,?,?,?)',
+            (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
+                is_cash, False)
+        )
     conn.commit()
     conn.execute('UPDATE request set status="Order Created", order_created=True where _id=? ', (request_id,))
     conn.commit()
-
-    order = cur.execute("SELECT * from orders, request where orders.request_id=?", (request_id,)).fetchone()
-    images = cur.execute("SELECT images.url from images, orders where orders.id=images.user_id").fetchall()
-    order['images'] = images
-
+    
+    order = cur.execute("SELECT * from orders, request where orders.request_id=?",(request_id,)).fetchone() 
+    order['images'] = get_order_image(order_id)
+    order['items'] = json.loads(order['items'])
     return jsonify([order])
 
+def get_order_image(order_id):
+    conn, cur = conn_curr()
+    return cur.execute("SELECT images.url from images, orders where orders.id=? and orders.id=images.user_id",(order_id,)).fetchall() 
 
+
+@bp.route('/readOrders', methods=['GET'])
 @bp.route('/signedOrderForFinance', methods=['GET'])
 @bp.route('/markAsRead/<order_id>', methods=['POST'])
 def approve_orderfinance(order_id=None):
     conn, cur = conn_curr()
+    is_read=False
     if request.method == 'POST':
         content = flask.request.get_json()
         is_read = content['is_read']
-        order_id = order_id
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
-        return jsonify({"Message": "Order marked as read."})
+        user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
+        return jsonify({"Message":"Order marked as read."})
     else:
-        orders = cur.execute('SELECT * from orders where is_sign=True').fetchall()
+        request_name = request.url.split("/")[-1]
+        if request_name == 'readOrders':
+            is_read=True
+        orders = cur.execute(f'SELECT * from orders where is_sign=True and {is_read}').fetchall()
+        for i in range(len(orders)):
+            orders[i]['images'] = get_order_image(orders[i]['id'])
+            orders[i]['items'] = json.loads(orders[i]['items'])
         return jsonify(orders)
 
 
@@ -756,16 +767,15 @@ def approve_ordermanager():
     if request.method == 'POST':
         content = flask.request.get_json()
         order_id = content['order_id']
-        try:
-            comment = content['comment']
-        except:
-            comment = ''
-
-        json_list = []
+        comment = content.get('comment', "")
         conn.execute('UPDATE orders set is_sign=?, comment=?  where id=?', (True, comment, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
-        json_list.append(user)
+
+        images = get_order_image(order_id)
+        for image in images:
+            sign_image.add_signarture( image['url'] )
+
         return jsonify({"Message": "Success"}), 201
     else:
         orders = cur.execute('SELECT * from orders where is_sign=False ').fetchall()
