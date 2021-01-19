@@ -719,9 +719,8 @@ def create_orders_from_staff():
 
                 conn.execute(
                     'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,path,created_at, is_cash, '
-                    'is_read, '
-                    'comment) '
-                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s,%s)',
+                    'is_read) '
+                    ' VALUES (%s, %s, %s, %s,%s,%s,%s,%s,%s,%s)',
                     (image_id, str(items_array), request_id, total, g.user['id'], False,
                      os.path.join(UPLOAD_FOLDER, image_id + file_name), datetime.datetime.now(),
                      is_cash, False)
