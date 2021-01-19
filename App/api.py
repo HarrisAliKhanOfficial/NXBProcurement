@@ -431,18 +431,18 @@ def login():
         content = flask.request.get_json()
         conn, cur = conn_curr()
 
-        email = content.get('email')
-        password = content.get('password')
+        email = content['email']
+        password = content['password']
 
         if email is None or password is None or id is None:
             return jsonify("Email or password cannot be null")
 
         else:
             pass_check = cur.execute('SELECT * from user where user.email=?', (email,)).fetchone()
-            if not pass_check:
-                return jsonify('Please verify your email address')
-            elif not check_password_hash(pass_check['password'], password):
+            if not check_password_hash(pass_check['password'], password):
                 return jsonify("Password Incorrect")
+            elif pass_check['is_verified'] != 1:
+                return jsonify('Please verify your email address')
             else:
                 user = cur.execute("SELECT * from user WHERE email=?",
                                    (email,)).fetchone()
@@ -507,7 +507,7 @@ def create_request():
                             (request_id,)).fetchall()
         requests["items"] = items
         return jsonify([requests])
-    return jsonify("Noauth")
+    return jsonify("Not Authorized"), 401
 
 
 @bp.route('/userRequests', methods=['GET'])
@@ -529,6 +529,7 @@ def attach_items_to_request(table, total_request):
 
 @bp.route('/user', methods=['GET'])
 def user():
+    del g.user['password']
     return jsonify({"data": g.user})
 
 
@@ -568,29 +569,18 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/approved-requests', defaults={'id': None}, methods=['GET'])
+@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])     # get specific request
 def approved_request(id=None):
+    conn, cur = conn_curr()
     if request.method == 'POST':
-
-        conn, cur = conn_curr()
-
         content = flask.request.get_json()
-
         request_id = content['id']
-
         json_list = []
-
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
                            (request_id,)).fetchall()
-
         json_list.append(user)
-
         return jsonify(json_list)
-
     else:
-
-        conn, cur = conn_curr()
-
         items = cur.execute('SELECT * from items,request where items.request_id=request._id and '
                             'request.status="Approved"').fetchall()
         return jsonify(items)
@@ -833,9 +823,9 @@ def processing_total_request():
     return jsonify(quotes_attached)
 
 
-def pms_requests(params_dict=None):
+def pms_requests(params_dict=None, table="request"):
     conn, cur = conn_curr()
-    query = "SELECT * from request "
+    query = f"SELECT * from {table} "
     if params_dict:
         query += "where "
         for i in params_dict:
