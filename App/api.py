@@ -510,7 +510,7 @@ def create_request():
                             (request_id,)).fetchall()
         requests["items"] = items
         return jsonify([requests])
-    return jsonify("Noauth")
+    return jsonify("Not Authorized"), 401
 
 @bp.route('/userRequests', methods=['GET'])
 def user_requests():
@@ -867,9 +867,9 @@ def processing_total_request():
     return jsonify(quotes_attached)
 
 
-def pms_requests(params_dict=None):
+def pms_requests(params_dict=None, table="request"):
     conn, cur = conn_curr()
-    query = "SELECT * from request "
+    query = f"SELECT * from {table} "
     if params_dict:
         query += "where "
         for i in params_dict:
