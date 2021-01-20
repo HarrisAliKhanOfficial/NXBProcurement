@@ -747,7 +747,7 @@ def approve_ordermanager():
 
         return jsonify({"Message": "Success"}), 201
     else:
-        orders = cur.execute('SELECT * from orders where is_sign=False ').fetchall()
+        orders = cur.execute('SELECT * from orders where is_sign<>1 ').fetchall()
         return jsonify(orders)
 
 
