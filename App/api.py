@@ -1,17 +1,19 @@
 import base64
 import datetime
+import json
 import os
 import uuid
-import pandas as pd
+
 import flask
 import jwt
+import pandas as pd
 from flask import Blueprint, request, url_for, jsonify, make_response, g
 from flask_mail import Mail, Message
 from werkzeug.security import check_password_hash, generate_password_hash
-import json
+
 from App import UPLOAD_FOLDER, priv_key
-from . import db
 from App import sign_image
+from . import db
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 bp = Blueprint('api', __name__, url_prefix="/api")
@@ -407,15 +409,12 @@ def create_request():
 
                 df = pd.read_csv(os.path.join(UPLOAD_FOLDER, image_id + file_name))
                 content = {}
-                # return str((df['name'][0]))
                 for row in range(len(str(df['name']))):
                     try:
-                        content[row] = ({"items":{"name":str(df['name'][row]), "quantity":str(df['quantity'][row]) , "description" :str(df['description'][row])}})
+                        content[row] = ({"items": {"name": str(df['name'][row]), "quantity": str(df['quantity'][row]),
+                                                   "description": str(df['description'][row])}})
                     except:
                         pass
-
-                # return jsonify(content)
-
                 items_array = content
         else:
             items_array = content['items']
