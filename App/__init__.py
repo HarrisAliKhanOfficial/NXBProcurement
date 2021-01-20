@@ -4,6 +4,8 @@ from flask import Flask
 
 from . import db
 
+from flaskext.mysql import MySQL
+
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "App", "uploads")
 priv_key = 'pppppppppqqqqqqqqqqqqqqeeeeeeeeeee'
 
@@ -38,7 +40,7 @@ def create_app(test_config=None):
 
     app.register_blueprint(Api.bp)
 
-    db.init_app(app)
+    # db.init_app(app)
 
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 465
@@ -49,7 +51,15 @@ def create_app(test_config=None):
     app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
     app.config['SECRET_KEY'] = "pppppppppqqqqqqqqqqqqqqeeeeeeeeeee"
 
+    app.config['MYSQL_DATABASE_USER'] = 'root'
+    app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
+    app.config['MYSQL_DATABASE_DB'] = 'NXB Procurement'
+    app.config['MYSQL_DATABASE_HOST'] = 'localhost'
+
+
+
     # auth.mail.init_app(app)
     Api.mail.init_app(app)
+
 
     return app
