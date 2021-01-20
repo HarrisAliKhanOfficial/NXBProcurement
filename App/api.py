@@ -360,8 +360,8 @@ def save_image_bs64(image, ext, image_path):
     image = image.encode('utf-8')
     decode_image = base64.decodebytes(image + b'===')
     image = decode_image
-    if not os.path.exists(image_path + '/userImages'):
-        os.makedirs(str(image_path) + '/userImages')
+    if not os.path.exists('/userImages/'+image_path  ):
+        os.makedirs( os.getcwd()+'/userImages/'+str(image_path) )
     file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
     file.write(image)
     file.close()
@@ -582,7 +582,7 @@ def create_quote(request_id=None):
             image_id = str(uuid.uuid4())
             image_path = os.getcwd()
             if not os.path.exists(image_path + '/quotes'):
-                os.makedirs(str(image_path) + '/quotes')
+                os.makedirs(os.getcwd() + '/quotes/' + str(image_path))
 
             file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
             conn.execute(
@@ -692,7 +692,7 @@ def create_orders_from_staff():
 
         image_path = os.getcwd()
         if not os.path.exists(image_path + '/bills'):
-            os.makedirs(str(image_path) + '/bills')
+            os.makedirs(os.getcwd() + '/bills/' + str(image_path))
 
         conn.execute('INSERT INTO images (id, url, user_id,created_at)'
                      ' VALUES (?, ?, ?, ?)',
