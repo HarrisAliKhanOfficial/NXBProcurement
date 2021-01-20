@@ -2,7 +2,7 @@ import base64
 import datetime
 import os
 import uuid
-
+import pandas as pd
 import flask
 import jwt
 from flask import Blueprint, request, url_for, jsonify, make_response, g
@@ -82,10 +82,8 @@ def decode_token(auth_token):
     try:
         payload = jwt.decode(auth_token, priv_key, algorithms='HS256')
         return payload['sub']
-
     except jwt.ExpiredSignatureError:
         raise jwt.ExpiredSignatureError('Signature expired. Please log in again.')
-
     except jwt.InvalidTokenError:
         raise jwt.ExpiredSignatureError('Invalid token. Please log in again.')
 
@@ -100,7 +98,6 @@ def email_verify(code=None):
     conn, cur = conn_curr()
     json_list = []
     user = cur.execute("SELECT * from user where verification_code=?", (code,)).fetchone()
-
     conn.execute('UPDATE user set is_verified=?, verification_code where id = ?', (True, 0, user[id],))
     conn.commit()
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
@@ -113,13 +110,10 @@ def forget_password(email, verification):
     conn, cur = conn_curr()
     id = uuid.uuid4()
     verification_code = hash(datetime.datetime.now())
-
     user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-
     conn.execute('INSERT INTO forgotpasswords (id,user_id,email,email_token,created_at) VALUES (?,?,?,?,?)',
                  (id, user['id'], user['email'], verification_code, datetime.datetime.now(),))
     conn.commit()
-
     msg = Message('Reset your password ',
                   sender='ashketchumreal4life@gmail.com',
                   recipients=[email]
@@ -143,7 +137,6 @@ def change_password():
     conn, cur = conn_curr()
     oldPassword = content['oldPassword']
     password = content['password']
-
     if check_password_hash(g.user['password'], oldPassword):
         conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password), g.user['id'],))
         conn.commit()
@@ -164,133 +157,66 @@ def send_email(email, verification_code):
     print("Sent the email")
 
 
-@bp.route('/genericsearch', methods=['GET', 'POST'])
-def search(parameter=None):
+@bp.route('/allUsers')  # include everyone
+@bp.route('/getFinanceMembers')
+@bp.route('/allManagers')
+@bp.route('/getUsers')
+@bp.route('/getStaffMembers')
+def users():
     global roles
-
     conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user where role_id = {0}'.format(parameter)).fetchall()
-
+    request_name = request.url.split("/")[-1]
+    query = 'SELECT * from user '
+    if request_name == "allUsers":
+        query += "where role_id<>1"
+    elif request_name == "getFinanceMembers":
+        query += "where role_id=4"
+    elif request_name == "getUsers":
+        query += "where role_id=3"
+    elif request_name == "getStaffMembers":
+        query += "where role_id=2"
+    else:
+        query += "where role_id=1"
+    all_users = cur.execute(query).fetchall()
     for i in all_users:
         i['role'] = roles[i['role_id']]
-
-    return jsonify(all_users)
-
-
-@bp.route('/allstaff')
-def allstaff():
-    global roles
-
-    conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user where role_id = {0}'.format(2)).fetchall()
-
-    for i in all_users:
-        i['role'] = roles[i['role_id']]
-
-    return jsonify(all_users)
-
-
-@bp.route('/allmembers')
-def allmembers():
-    global roles
-
-    conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user where role_id = {0}'.format(3)).fetchall()
-
-    for i in all_users:
-        i['role'] = roles[i['role_id']]
-
-    return jsonify(all_users)
-
-
-@bp.route('/allfinance')
-def allfinance():
-    global roles
-
-    conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user where role_id = {0}'.format(4)).fetchall()
-
-    for i in all_users:
-        i['role'] = roles[i['role_id']]
-
-    return jsonify(all_users)
-
-
-@bp.route('/allmanagers')
-def allmanagers():
-    global roles
-
-    conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user where role_id = {0}'.format(1)).fetchall()
-
-    for i in all_users:
-        i['role'] = roles[i['role_id']]
-
-    return jsonify(all_users)
-
-
-@bp.route('/allusers/')
-def allUsers():
-    global roles
-
-    conn, cur = conn_curr()
-    all_users = cur.execute('SELECT * from user').fetchall()
-
-    for i in all_users:
-        i['role'] = roles[i['role_id']]
-
+        del i['password']
     return jsonify(all_users)
 
 
 @bp.route('/terminateduser/')
 def terminatedUsers():
     global roles
-
     conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where is_terminated=1').fetchall()
-
     for i in all_users:
         i['role'] = roles[i['role_id']]
-
     return jsonify(all_users, {})
 
 
 @bp.route('/updateactivation', methods=['PUT'])
 def updateactivation():
     content = flask.request.get_json()
-
     json_list = []
-
     conn, cur = conn_curr()
-
     id = content['id']
-
     conn.execute('UPDATE user set status=? where id=?', (0, id,))
     conn.commit()
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
     json_list.append(user)
-
     return jsonify(json_list)
 
 
 @bp.route('/updateterminated', methods=['PUT'])
 def updateterminated(id=None):
     content = flask.request.get_json()
-
     json_list = []
-
     conn, cur = conn_curr()
-
     id = content['id']
-
     conn.execute('UPDATE user set is_terminated=? where id=?', (1, id,))
-
     conn.commit()
-
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
-
     json_list.append(user)
-
     return jsonify(json_list)
 
 
@@ -467,7 +393,33 @@ def create_request():
         content = flask.request.get_json()
         user_id = g.user['id']
         request_id = str(uuid.uuid4())
-        items_array = content['items']
+
+        if 'file' in request.files:
+
+            files = request.files.getlist("file")
+
+            for file in files:
+                file_name = str(file.filename).split(".")
+                file_name = "." + file_name[-1]
+                image_id = str(uuid.uuid4())
+
+                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+
+                df = pd.read_csv(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+                content = {}
+                # return str((df['name'][0]))
+                for row in range(len(str(df['name']))):
+                    try:
+                        content[row] = ({"items":{"name":str(df['name'][row]), "quantity":str(df['quantity'][row]) , "description" :str(df['description'][row])}})
+                    except:
+                        pass
+
+                # return jsonify(content)
+
+                items_array = content
+        else:
+            items_array = content['items']
+
         content = items_array
 
         user = g.user
@@ -490,9 +442,15 @@ def create_request():
 
         for i in range(len(items_array)):
             content_items = content[int(i)]
-            name = content_items['name']
-            description = content_items['description']
-            quantity = content_items['quantity']
+            try:
+                name = content_items['name']
+                description = content_items['description']
+                quantity = content_items['quantity']
+            except:
+                name = content_items['items']['name']
+                description = content_items['items']['description']
+                quantity = content_items['items']['quantity']
+
             items_id = uuid.uuid4()
             requests = cur.execute("SELECT * from request WHERE _id=?",
                                    (request_id,)).fetchone()
@@ -526,9 +484,15 @@ def attach_items_to_request(table, total_request):
     return total_request
 
 
+@bp.route('/getUserAndStaff/<id>', methods=['GET'])
 @bp.route('/user', methods=['GET'])
-def user():
-    del g.user['password']
+def user(id=None):
+    user = g.user
+    if id:
+        cur, conn = conn_curr()
+        query = f"Select * from user where id='{id}'"
+        user = cur.execute(query).fetchone()
+    del user['password']
     return jsonify({"data": g.user})
 
 
@@ -568,7 +532,7 @@ def read_request(id=None):
 
 
 @bp.route('/approved-requests/request-details?requestId=<int:id>', methods=['POST'])
-@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])     # get specific request
+@bp.route('/requests/<id>', defaults={'id': None}, methods=['GET'])  # get specific request
 def approved_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
@@ -601,9 +565,9 @@ def create_quote(request_id=None):
                 'INSERT INTO quotes (id, path, request_id,status,created_at)'
                 ' VALUES (?, ?, ?, ?,?)',
                 (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
-                    "Quotes "
-                    "Added",
-                    datetime.datetime.now())
+                 "Quotes "
+                 "Added",
+                 datetime.datetime.now())
             )
             conn.commit()
         return jsonify({"Message": "Success"}), 201
@@ -612,59 +576,41 @@ def create_quote(request_id=None):
 @bp.route('/allquotes', methods=['GET'])
 def all_quotes():
     conn, cur = conn_curr()
-
     json_list = []
-
     user = cur.execute('SELECT * from quotes where status<>"Approved"').fetchall()
     json_list.append(user)
 
     return jsonify(json_list)
 
 
-@bp.route('orders/order-details?orderId=<int:id>', methods=['POST', 'GET'])
-@bp.route('/orders', defaults={'id': None}, methods=['GET'])
+@bp.route('/orders', methods=['GET'])
+@bp.route('/staffAllCashOrders', methods=['GET'])
+@bp.route('/allCashOrders', methods=['GET'])
+@bp.route('/staffAllOrders', methods=['GET'])
+@bp.route('/orders/<id>', methods=['GET'])
 def all_quotes_verified(id=None):
-    if id is None:
-        conn, cur = conn_curr()
-
-        json_list = []
-
-        user = cur.execute('SELECT * from orders').fetchall()
-        json_list.append(user)
-
-        return jsonify(json_list)
-
+    conn, cur = conn_curr()
+    request_name = request.url.split("/")[-1]
+    if request_name == 'allCashOrders':
+        orders = cur.execute(
+            'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NULL').fetchall()
+        orders = items_json(orders)
+    elif request_name == 'staffAllCashOrders':
+        orders = cur.execute(
+            f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NULL and orders.staff_id="{g.user["id"]}"').fetchall()
+        orders = items_json(orders)
+    elif request_name == 'staffAllOrders':
+        orders = cur.execute(
+            f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NOT NULL and orders.staff_id="{g.user["id"]}"').fetchall()
+        orders = items_json(orders)
     else:
-
-        if request.method == 'GET':
-
-            conn, cur = conn_curr()
-
-            content = flask.request.get_json()
-
-            order_id = content['order_id']
-
-            comment = content['comment']
-
-            json_list = []
-
-            conn.execute('UPDATE orders is_sign=?, comment=?  where id=?', (True, comment, order_id,))
-            conn.commit()
-            user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
-            json_list.append(user)
-
-            return jsonify(json_list)
-
-
+        if g.user['role_id'] == 1:
+            query = f'SELECT * from orders where id="{id}"'
         else:
-            conn, cur = conn_curr()
-
-            json_list = []
-
-            user = cur.execute('SELECT * from orders where id=?', (id)).fetchone()
-            json_list.append(user)
-
-            return jsonify(json_list)
+            query = f'SELECT * from orders where id="{id}" and staff_id= "{g.user["id"]}" '
+        orders = cur.execute(query).fetchone()
+        orders['items'] = json.loads(orders['items'])
+    return jsonify(orders)
 
 
 @bp.route('/approvedquote', methods=['POST'])
@@ -679,7 +625,7 @@ def approve_quote():
 
 
 @bp.route('/createOrder', methods=['POST'])
-@bp.route('/createpurchaseorder', methods=['POST'])
+@bp.route('/createCashOrder', methods=['POST'])
 def create_orders_from_staff():
     conn, cur = conn_curr()
     request_name = request.url.split("/")[-1]
@@ -697,9 +643,8 @@ def create_orders_from_staff():
     request_id = content.get('request_id')
     total = content.get('total')
 
-    if not items_array or not request_id or not total:
-        return jsonify("Missing arguments"), 422 
-
+    if not items_array or not total:
+        return jsonify("Missing arguments"), 422
     order_id = str(uuid.uuid4())
 
     for file in files:
@@ -709,53 +654,69 @@ def create_orders_from_staff():
         file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
         conn.execute('INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
-                         (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)) , order_id ,datetime.datetime.now() ,))
+                     ' VALUES (?, ?, ?, ?)',
+                     (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
+                      datetime.datetime.now(),))
         conn.commit()
-
     conn.execute(
-            'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
-            'is_read) '
-            ' VALUES (?,?,?,?,?,?,?,?,?)',
-            (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
-                is_cash, False)
-        )
+        'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
+        'is_read) '
+        ' VALUES (?,?,?,?,?,?,?,?,?)',
+        (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
+         is_cash, False)
+    )
     conn.commit()
     conn.execute('UPDATE request set status="Order Created", order_created=True where _id=? ', (request_id,))
     conn.commit()
-    
-    order = cur.execute("SELECT * from orders, request where orders.request_id=?",(request_id,)).fetchone() 
+
+    order = cur.execute("SELECT * from orders, request where orders.id=?", (order_id,)).fetchone()
     order['images'] = get_order_image(order_id)
     order['items'] = json.loads(order['items'])
     return jsonify([order])
 
+
 def get_order_image(order_id):
     conn, cur = conn_curr()
-    return cur.execute("SELECT images.url from images, orders where orders.id=? and orders.id=images.user_id",(order_id,)).fetchall() 
+    return cur.execute("SELECT images.url from images, orders where orders.id=? and orders.id=images.user_id",
+                       (order_id,)).fetchall()
 
 
+@bp.route('/allCashOrdersFinance', methods=['GET'])
 @bp.route('/readOrders', methods=['GET'])
 @bp.route('/signedOrderForFinance', methods=['GET'])
 @bp.route('/markAsRead/<order_id>', methods=['POST'])
 def approve_orderfinance(order_id=None):
     conn, cur = conn_curr()
-    is_read=False
+    is_read = False
     if request.method == 'POST':
         content = flask.request.get_json()
         is_read = content['is_read']
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
-        return jsonify({"Message":"Order marked as read."})
+        return jsonify({"Message": "Order marked as read."})
     else:
         request_name = request.url.split("/")[-1]
         if request_name == 'readOrders':
-            is_read=True
-        orders = cur.execute(f'SELECT * from orders where is_sign=True and {is_read}').fetchall()
-        for i in range(len(orders)):
-            orders[i]['images'] = get_order_image(orders[i]['id'])
-            orders[i]['items'] = json.loads(orders[i]['items'])
+            is_read = True
+
+        elif request_name == 'allCashOrdersFinance':
+            orders = cur.execute(
+                f'SELECT * from orders where is_sign=True and is_read={is_read} and orders.request_id IS NULL').fetchall()
+            orders = items_json(orders)
+            return jsonify(orders)
+        else:
+            pass
+        orders = cur.execute(f'SELECT * from orders where is_sign=True and is_read={is_read}').fetchall()
+        orders = items_json(orders)
         return jsonify(orders)
+
+
+def items_json(orders):
+    for i in range(len(orders)):
+        orders[i]['images'] = get_order_image(orders[i]['id'])
+        orders[i]['items'] = json.loads(orders[i]['items'])
+    return orders
 
 
 @bp.route('/allUnsignedOrders', methods=['GET'])
@@ -774,7 +735,7 @@ def approve_ordermanager():
 
         images = get_order_image(order_id)
         for image in images:
-            sign_image.add_signarture( image['url'] )
+            sign_image.add_signarture(image['url'])
 
         return jsonify({"Message": "Success"}), 201
     else:
