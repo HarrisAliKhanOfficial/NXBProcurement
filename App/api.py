@@ -605,7 +605,7 @@ def all_quotes():
 
     return jsonify(quotes)
 
-
+@bp.route('/readCashOrders', methods=['GET'])
 @bp.route('/orders', methods=['GET'])
 @bp.route('/staffAllCashOrders', methods=['GET'])
 @bp.route('/allCashOrders', methods=['GET'])
@@ -626,7 +626,12 @@ def all_quotes_verified(order_id=None):
         orders = cur.execute(
             f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NOT NULL and orders.staff_id="{g.user["id"]}"').fetchall()
         orders = items_json(orders)
+    elif request_name == 'readCashOrders':
+        orders = cur.execute(
+            f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NULL').fetchall()
+        orders = items_json(orders)
     else:
+
         if g.user['role_id'] == 1:
             query = f'SELECT * from orders where id="{order_id}"'
         else:
