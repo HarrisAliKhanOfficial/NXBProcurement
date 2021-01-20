@@ -185,14 +185,15 @@ def users():
     return jsonify(all_users)
 
 
-@bp.route('/terminateduser/')
+@bp.route('/allterminatedusers/')
 def terminatedUsers():
     global roles
     conn, cur = conn_curr()
     all_users = cur.execute('SELECT * from user where is_terminated=1').fetchall()
     for i in all_users:
         i['role'] = roles[i['role_id']]
-    return jsonify(all_users, {})
+        del i['password']
+    return jsonify(all_users)
 
 
 @bp.route('/updateactivation', methods=['PUT'])
@@ -208,7 +209,7 @@ def updateactivation():
     return jsonify(json_list)
 
 
-@bp.route('/updateterminated', methods=['PUT'])
+@bp.route('/terminateUser', methods=['PUT'])
 def updateterminated(id=None):
     content = flask.request.get_json()
     json_list = []
@@ -479,7 +480,7 @@ def user_requests():
 def attach_items_to_request(table, total_request):
     conn, cur = conn_curr()
     for i in range(len(total_request)):
-        items = cur.execute(f"SELECT * from {table} where request_id=? ", (total_request[i]['_id'],)).fetchall()
+        items = cur.execute(f"SELECT * from {table} where request_id=? ", (str(total_request[i]['_id']),)).fetchall()
         total_request[i][table] = items
     return total_request
 
@@ -502,19 +503,26 @@ def assign_request(request_id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
         content = flask.request.get_json()
-        staff_id = content['staff_id']
+        staff_id = content.get('staff_id')
+
+        if not request_id or not staff_id:
+            return jsonify("Provide the Staff and Request Id")
+
         conn.execute('UPDATE request set staff_id=?, status=? where _id=?', (staff_id, 'Processing', request_id,))
         conn.commit()
         requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
                                (request_id,)).fetchone()
         return jsonify({"request": requests, "message": "Success"})
     else:
-        content = flask.request.get_json()
-        requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
+        if not request_id:
+            return jsonify("Provide the Request ID")
+        try:
+            requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
                                (request_id,)).fetchone()
-        requests = attach_items_to_request('items', [requests])[0]
-        return jsonify(requests)
-
+            requests = attach_items_to_request('items', [requests])[0]
+            return jsonify(requests)
+        except:
+            return jsonify("The request Id is invalid")
 
 @bp.route('/new-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
 def read_request(id=None):
