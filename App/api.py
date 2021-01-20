@@ -208,17 +208,14 @@ def updateactivation():
     return jsonify(json_list)
 
 
-@bp.route('/terminateUser', methods=['PUT'])
+@bp.route('/terminateUser', methods=['POST',"PUT"])
 def updateterminated(id=None):
     content = flask.request.get_json()
-    json_list = []
     conn, cur = conn_curr()
     id = content['id']
     conn.execute('UPDATE user set is_terminated=? where id=?', (1, id,))
     conn.commit()
-    user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
-    json_list.append(user)
-    return jsonify(json_list)
+    return 200
 
 
 @bp.route('/updateProfile', methods=['PUT'])
@@ -288,6 +285,21 @@ def deletex():
         conn.commit()
     json_list.append('The user has been deleted with the email {0}'.format(email))
     return jsonify(json_list)
+
+
+
+
+@bp.route('/deleteOrderOrPurchase/',defaults={'order_id' : None}, methods=['DELETE'])
+def deleteorderorPurchase(order_id):
+    conn, cur = conn_curr()
+
+    conn.execute('DELETE FROM order where id=? and sign=0', (str(order_id),))
+    conn.commit()
+
+    return jsonify("Order has been deleted")
+
+
+
 
 
 @bp.route('/register', methods=['POST'])
@@ -483,14 +495,13 @@ def attach_items_to_request(table, total_request):
         total_request[i][table] = items
     return total_request
 
-
-@bp.route('/getUserAndStaff/<id>', methods=['GET'])
+@bp.route('/getUserAndStaff/', defaults={'staff_id': None}, methods=['GET'])
 @bp.route('/user', methods=['GET'])
-def user(id=None):
+def user(staff_id=None):
     user = g.user
-    if id:
+    if staff_id:
         cur, conn = conn_curr()
-        query = f"Select * from user where id='{id}'"
+        query = f"Select * from user where id='{staff_id}'"
         user = cur.execute(query).fetchone()
     del user['password']
     return jsonify({"data": g.user})
@@ -589,19 +600,18 @@ def create_quote(request_id=None):
 @bp.route('/allquotes', methods=['GET'])
 def all_quotes():
     conn, cur = conn_curr()
-    json_list = []
-    user = cur.execute('SELECT * from quotes where status<>"Approved"').fetchall()
-    json_list.append(user)
 
-    return jsonify(json_list)
+    quotes = cur.execute('SELECT * from quotes where status<>"Approved"').fetchall()
+
+    return jsonify(quotes)
 
 
 @bp.route('/orders', methods=['GET'])
 @bp.route('/staffAllCashOrders', methods=['GET'])
 @bp.route('/allCashOrders', methods=['GET'])
 @bp.route('/staffAllOrders', methods=['GET'])
-@bp.route('/orders/<id>', methods=['GET'])
-def all_quotes_verified(id=None):
+@bp.route('/orders/', defaults={'order_id': None}, methods=['GET'])
+def all_quotes_verified(order_id=None):
     conn, cur = conn_curr()
     request_name = request.url.split("/")[-1]
     if request_name == 'allCashOrders':
@@ -618,23 +628,32 @@ def all_quotes_verified(id=None):
         orders = items_json(orders)
     else:
         if g.user['role_id'] == 1:
-            query = f'SELECT * from orders where id="{id}"'
+            query = f'SELECT * from orders where id="{order_id}"'
         else:
-            query = f'SELECT * from orders where id="{id}" and staff_id= "{g.user["id"]}" '
+            query = f'SELECT * from orders where id="{order_id}" and staff_id= "{g.user["id"]}" '
         orders = cur.execute(query).fetchone()
-        orders['items'] = json.loads(orders['items'])
+        try:
+            orders['items'] = json.loads(orders['items'])
+        except:
+            return jsonify("Order Id is Incorrect or Not provided")
+
     return jsonify(orders)
 
-
-@bp.route('/approvedquote', methods=['POST'])
+@bp.route('allapprovedrequests', methods=['GET'])
+@bp.route('/approvedquote', methods=['POST','GET'])
 def approve_quote():
     conn, cur = conn_curr()
-    content = flask.request.get_json()
-    quote_id = content['quote_id']
-    conn.execute("UPDATE quotes set status=? where id=? and status=?", ("Approved", quote_id, "Quotes Added"))
-    conn.commit()
-    quote = cur.execute('SELECT * from quotes where id=?', (quote_id,)).fetchone()
-    return jsonify({"Message": "Success", "quote": quote})
+    if request.method =="POST":
+        content = flask.request.get_json()
+        quote_id = content['quote_id']
+        conn.execute("UPDATE quotes set status=? where id=? and status=?", ("Approved", quote_id, "Quotes Added"))
+        conn.commit()
+        quote = cur.execute('SELECT * from quotes where id=?', (quote_id,)).fetchone()
+        return jsonify({"Message": "Success", "quote": quote})
+    else:
+        quotes = cur.execute('SELECT * from quotes where status="Approved"').fetchall()
+
+        return jsonify(quotes)
 
 
 @bp.route('/createOrder', methods=['POST'])
@@ -700,31 +719,37 @@ def get_order_image(order_id):
 
 @bp.route('/allCashOrdersFinance', methods=['GET'])
 @bp.route('/readOrders', methods=['GET'])
+@bp.route('/allOrders', methods=['GET'])
 @bp.route('/signedOrderForFinance', methods=['GET'])
 @bp.route('/markAsRead/<order_id>', methods=['POST'])
 def approve_orderfinance(order_id=None):
     conn, cur = conn_curr()
-    is_read = False
+    is_read = 0
     if request.method == 'POST':
         content = flask.request.get_json()
         is_read = content['is_read']
-        conn.execute('UPDATE orders set is_read=? where id=? and is_sign=True ', (is_read, order_id,))
+        conn.execute('UPDATE orders set is_read=? where id=? and is_sign=1 ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
         return jsonify({"Message": "Order marked as read."})
     else:
         request_name = request.url.split("/")[-1]
         if request_name == 'readOrders':
-            is_read = True
+            is_read = 1
 
         elif request_name == 'allCashOrdersFinance':
             orders = cur.execute(
-                f'SELECT * from orders where is_sign=True and is_read={is_read} and orders.request_id IS NULL').fetchall()
+                f'SELECT * from orders where is_sign=1 and is_read={is_read} and orders.request_id IS NULL').fetchall()
+            orders = items_json(orders)
+            return jsonify(orders)
+        elif request_name == 'allOrders':
+            orders = cur.execute('SELECT * from orders').fetchall()
             orders = items_json(orders)
             return jsonify(orders)
         else:
             pass
-        orders = cur.execute(f'SELECT * from orders where is_sign=True and is_read={is_read}').fetchall()
+
+        orders = cur.execute(f'SELECT * from orders where is_sign=1 and is_read={is_read}').fetchall()
         orders = items_json(orders)
         return jsonify(orders)
 
