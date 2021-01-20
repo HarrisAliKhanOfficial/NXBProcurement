@@ -168,15 +168,15 @@ def users():
     request_name = request.url.split("/")[-1]
     query = 'SELECT * from user '
     if request_name == "allUsers":
-        query += "where role_id<>1"
+        query += "where role_id<>1 and status<>0"
     elif request_name == "getFinanceMembers":
-        query += "where role_id=4"
+        query += "where role_id=4 and status<>0"
     elif request_name == "getUsers":
-        query += "where role_id=3"
+        query += "where role_id=3 and status<>0"
     elif request_name == "getStaffMembers":
-        query += "where role_id=2"
+        query += "where role_id=2 and status<>0"
     else:
-        query += "where role_id=1"
+        query += "where role_id=1 and status<>0"
     all_users = cur.execute(query).fetchall()
     for i in all_users:
         i['role'] = roles[i['role_id']]
@@ -195,13 +195,20 @@ def terminatedUsers():
     return jsonify(all_users)
 
 
-@bp.route('/updateactivation', methods=['PUT'])
+@bp.route('/toggleActivation', methods=['PUT'])
 def updateactivation():
     content = flask.request.get_json()
     json_list = []
     conn, cur = conn_curr()
     id = content['id']
-    conn.execute('UPDATE user set status=? where id=?', (0, id,))
+    user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
+
+    if user['status']==True:
+        status = False
+    else:
+        status = True
+
+    conn.execute('UPDATE user set status=? where id=?', (status, id,))
     conn.commit()
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
     json_list.append(user)
