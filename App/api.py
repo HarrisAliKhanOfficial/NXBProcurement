@@ -125,7 +125,6 @@ def forget_password(email, verification):
     mail.send(msg)
 
 
-
 def note_repr(key):
     return {
         'url': request.host_url.rstrip('/') + url_for('notes_detail', key=key)
@@ -349,8 +348,8 @@ def save_image_bs64(image, ext, image_path):
     image = image.encode('utf-8')
     decode_image = base64.decodebytes(image + b'===')
     image = decode_image
-    if not os.path.exists(image_path+'/userImages'):
-        os.makedirs(str(image_path)+'/userImages')
+    if not os.path.exists(image_path + '/userImages'):
+        os.makedirs(str(image_path) + '/userImages')
     file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
     file.write(image)
     file.close()
@@ -517,12 +516,14 @@ def assign_request(request_id=None):
         if not request_id:
             return jsonify("Provide the Request ID")
         try:
-            requests = cur.execute('SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
-                               (request_id,)).fetchone()
+            requests = cur.execute(
+                'SELECT request.*,user.name from request,user where _id=? and request.staff_id=user.id',
+                (request_id,)).fetchone()
             requests = attach_items_to_request('items', [requests])[0]
             return jsonify(requests)
         except:
             return jsonify("The request Id is invalid")
+
 
 @bp.route('/new-requests/request-details?requestId=<int:id>', methods=['POST', 'GET'])
 def read_request(id=None):
