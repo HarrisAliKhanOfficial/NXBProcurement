@@ -123,7 +123,7 @@ def forget_password(email, verification):
     msg.body = "Click the Link Below to Verify your Email and Activate your Account \n api/email/verify?code=" + str(
         verification_code) + ".updatewithpassword"
     mail.send(msg)
-    print("Sent")
+
 
 
 def note_repr(key):
@@ -156,7 +156,6 @@ def send_email(email, verification_code):
                   )
     msg.body = str(verification_code)
     mail.send(msg)
-    print("Sent the email")
 
 
 @bp.route('/allUsers')  # include everyone
@@ -455,7 +454,7 @@ def create_request():
             items_id = uuid.uuid4()
             requests = cur.execute("SELECT * from request WHERE _id=?",
                                    (request_id,)).fetchone()
-            print(requests)
+
             conn.execute(
                 'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
                 'VALUES (?,?,?,?,?,?,?)',

@@ -40,7 +40,7 @@ def create_app(test_config=None):
 
     app.register_blueprint(Api.bp)
 
-    # db.init_app(app)
+    db.init_app(app)
 
     app.config['MAIL_SERVER'] = 'smtp.gmail.com'
     app.config['MAIL_PORT'] = 465
