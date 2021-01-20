@@ -328,24 +328,24 @@ def register():
                 (str(id), name, email, contact, generate_password_hash(password), role, created_at, verification_code,
                  True, True,))
             conn.commit()
-            try:
-                image = request.json.get('image')
-                data = image.split(';base64,')
-                image = data[-1]
-                ext = data[0].split('image/')[-1]
+            # try:
+            image = request.json.get('image')
+            data = image.split(';base64,')
+            image = data[-1]
+            ext = data[0].split('image/')[-1]
 
-                if image != "NULL":
-                    save_image_bs64(image, ext, str(id))
-                    user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
-                    conn.execute(
-                        'INSERT INTO images (id, url, user_id,created_at)'
-                        ' VALUES (?, ?, ?, ?)',
-                        (str(id), str(os.path.join(UPLOAD_FOLDER, (str(id) + "." + str(ext)))), user['id'],
-                         datetime.datetime.now())
-                    )
-                    conn.commit()
-            except:
-                print("Image not given")
+            if image != "NULL":
+                save_image_bs64(image, ext, str(id))
+                user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
+                conn.execute(
+                    'INSERT INTO images (id, url, user_id,created_at)'
+                    ' VALUES (?, ?, ?, ?)',
+                    (str(id), str(os.path.join(UPLOAD_FOLDER, (str(id) + "." + str(ext)))), user['id'],
+                     datetime.datetime.now())
+                )
+                conn.commit()
+            # except:
+            #     print("Image not given")
 
                 # send_email(email, verification_code)
             user = cur.execute("SELECT * from user where email=?", (email,)).fetchone()
@@ -360,9 +360,10 @@ def save_image_bs64(image, ext, image_path):
     image = image.encode('utf-8')
     decode_image = base64.decodebytes(image + b'===')
     image = decode_image
-    if not os.path.exists(os.getcwd()+'/App/uploads/userImages/'+image_path  ):
+    if not os.path.exists(os.getcwd()+'/App/uploads/userImages/' ):
         os.makedirs( os.getcwd()+'/App/uploads/userImages/' )
-        UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/userImages/')
+
+    UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/userImages/')
 
     file = open(os.path.join(UPLOAD_FOLDER, (image_path + "." + str(ext))), 'wb')
     file.write(image)
@@ -583,9 +584,9 @@ def create_quote(request_id=None):
             file_name = "." + file_name[-1]
             image_id = str(uuid.uuid4())
             image_path = os.getcwd()
-            if not os.path.exists(os.getcwd()+'/App/uploads/quotes/' + image_path  ):
+            if not os.path.exists(os.getcwd()+'/App/uploads/quotes/'  ):
                 os.makedirs(os.getcwd() + '/App/uploads/quotes/')
-                UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/quotes/')
+            UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/quotes/')
 
             file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
             conn.execute(
@@ -694,9 +695,9 @@ def create_orders_from_staff():
         file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
         image_path = os.getcwd()
-        if not os.path.exists(os.getcwd()+  '/App/uploads/bills/'+image_path ):
+        if not os.path.exists(os.getcwd()+  '/App/uploads/bills/' ):
             os.makedirs(os.getcwd() + '/App/uploads/bills/')
-            UPLOAD_FOLDER = str(os.getcwd() + 'App/uploads/bills/')
+        UPLOAD_FOLDER = str(os.getcwd() + 'App/uploads/bills/')
 
         conn.execute('INSERT INTO images (id, url, user_id,created_at)'
                      ' VALUES (?, ?, ?, ?)',
