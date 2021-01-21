@@ -516,7 +516,7 @@ def user(staff_id=None):
 
 @bp.route('/requests/<request_id>', methods=['GET'])
 @bp.route('/assignrequests/<request_id>', methods=['POST'])
-def assign_request(request_id=None):
+def assign_request(request_id):
     conn, cur = conn_curr()
     if request.method == 'POST':
         content = flask.request.get_json()
