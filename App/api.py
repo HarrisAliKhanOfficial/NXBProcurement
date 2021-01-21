@@ -120,8 +120,8 @@ def forget_password(email, verification):
                   sender='ashketchumreal4life@gmail.com',
                   recipients=[email]
                   )
-    msg.body = "Click the Link Below to Verify your Email and Activate your Account \n api/email/verify?code=" + str(
-        verification_code) + ".updatewithpassword"
+    msg.body = "Click the Link Below to Reset Password and Activate your Account \n api/email/change_password?code=" + str(
+        verification_code)
     mail.send(msg)
 
 
@@ -295,7 +295,7 @@ def deletex():
 def deleteorderorPurchase(order_id):
     conn, cur = conn_curr()
 
-    conn.execute('DELETE FROM order where id=? and sign=0', (str(order_id),))
+    conn.execute('DELETE FROM orders where id=? and sign=0', (str(order_id),))
     conn.commit()
 
     return jsonify("Order has been deleted")
