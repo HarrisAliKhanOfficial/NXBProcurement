@@ -292,7 +292,6 @@ def deletex():
 
 
 @bp.route('/editOrderOrPurchase/<order_id>', methods=['PUT'])
-@bp.route('/editOrderOrPurchase/', defaults={'order_id': None}, methods=['PUT'])
 def editorderorPurchase(order_id):
     conn, cur = conn_curr()
     content = request.form
@@ -308,12 +307,19 @@ def editorderorPurchase(order_id):
             quantity = content_items['quantity']
             price = content_items['price']
 
-            conn.execute('UPDATE items set name=?,quantity=?,price=? where request_id=?',
-                         (name, quantity, price, request_id,))
+            items_id = uuid.uuid4()
+            requests = cur.execute("SELECT * from request WHERE _id=?",
+                                   (request_id,)).fetchone()
+            description = ''
+
+            conn.execute('DELETE FROM items  where request_id=?',( request_id,))
             conn.commit()
 
-        conn.execute('UPDATE orders set items=?,total=? where id and is_sign=0', str(order_id, total, ))
-        conn.commit()
+            conn.execute(
+                'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
+                'VALUES (?,?,?,?,?,?,?)',
+                (str(items_id), name, str(description), str(price), requests['_id'], datetime.datetime.now(), quantity,))
+            conn.commit()
 
         conn.execute('DELETE FROM images where user_id=? is_sign=0', (str(order_id),))
         conn.commit()
