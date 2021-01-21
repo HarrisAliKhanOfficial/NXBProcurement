@@ -217,7 +217,7 @@ def updateterminated(id=None):
     content = flask.request.get_json()
     conn, cur = conn_curr()
     id = content['id']
-    conn.execute('UPDATE user set is_terminated=? where id=?', (1, id,))
+    conn.execute('UPDATE user set is_terminated=? where id=? and is_terminated IS NULL', (1, id,))
     conn.commit()
     return str(200), 200
 
@@ -406,78 +406,81 @@ def logout():
 @bp.route('/createRequest', methods=['POST'])
 def create_request():
     if request.method == "POST" and g.user['role_id'] not in [1, 4]:
-        conn, cur = conn_curr()
-        content = flask.request.get_json()
-        user_id = g.user['id']
-        request_id = str(uuid.uuid4())
+        try:
+            conn, cur = conn_curr()
+            content = flask.request.get_json()
+            user_id = g.user['id']
+            request_id = str(uuid.uuid4())
 
-        if 'file' in request.files:
+            if 'file' in request.files:
 
-            files = request.files.getlist("file")
+                files = request.files.getlist("file")
 
-            for file in files:
-                file_name = str(file.filename).split(".")
-                file_name = "." + file_name[-1]
-                image_id = str(uuid.uuid4())
+                for file in files:
+                    file_name = str(file.filename).split(".")
+                    file_name = "." + file_name[-1]
+                    image_id = str(uuid.uuid4())
 
-                file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+                    file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
 
-                df = pd.read_csv(os.path.join(UPLOAD_FOLDER, image_id + file_name))
-                content = {}
-                for row in range(len(str(df['name']))):
-                    try:
-                        content[row] = ({"items": {"name": str(df['name'][row]), "quantity": str(df['quantity'][row]),
-                                                   "description": str(df['description'][row])}})
-                    except:
-                        pass
-                items_array = content
-        else:
-            items_array = content['items']
+                    df = pd.read_csv(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+                    content = {}
+                    for row in range(len(str(df['name']))):
+                        try:
+                            content[row] = ({"items": {"name": str(df['name'][row]), "quantity": str(df['quantity'][row]),
+                                                       "description": str(df['description'][row])}})
+                        except:
+                            pass
+                    items_array = content
+            else:
+                items_array = content['items']
 
-        content = items_array
+            content = items_array
 
-        user = g.user
-        staff_id = None
-        if user['role_id'] == 3:
-            status = 'Pending'
-            conn.execute(
-                'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-                'VALUES (?,?,?,?,?,?)',
-                (str(request_id), user_id, datetime.datetime.now(), status, False, staff_id))
-            conn.commit()
-        else:
-            staff_id = user["id"]
-            status = 'Processing'
-            conn.execute(
-                'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
-                'VALUES (?,?,?,?,?,?)',
-                (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
-            conn.commit()
+            user = g.user
+            staff_id = None
+            if user['role_id'] == 3:
+                status = 'Pending'
+                conn.execute(
+                    'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (str(request_id), user_id, datetime.datetime.now(), status, False, staff_id))
+                conn.commit()
+            else:
+                staff_id = user["id"]
+                status = 'Processing'
+                conn.execute(
+                    'INSERT INTO request(_id,user_id,created_at,status,order_created, staff_id) '
+                    'VALUES (?,?,?,?,?,?)',
+                    (str(request_id), user_id, datetime.datetime.now(), status, True, staff_id))
+                conn.commit()
 
-        for i in range(len(items_array)):
-            content_items = content[int(i)]
-            try:
-                name = content_items['name']
-                description = content_items['description']
-                quantity = content_items['quantity']
-            except:
-                name = content_items['items']['name']
-                description = content_items['items']['description']
-                quantity = content_items['items']['quantity']
+            for i in range(len(items_array)):
+                content_items = content[int(i)]
+                try:
+                    name = content_items['name']
+                    description = content_items['description']
+                    quantity = content_items['quantity']
+                except:
+                    name = content_items['items']['name']
+                    description = content_items['items']['description']
+                    quantity = content_items['items']['quantity']
 
-            items_id = uuid.uuid4()
-            requests = cur.execute("SELECT * from request WHERE _id=?",
-                                   (request_id,)).fetchone()
+                items_id = uuid.uuid4()
+                requests = cur.execute("SELECT * from request WHERE _id=?",
+                                       (request_id,)).fetchone()
 
-            conn.execute(
-                'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
-                'VALUES (?,?,?,?,?,?,?)',
-                (str(items_id), name, str(description), "0", requests['_id'], datetime.datetime.now(), quantity,))
-            conn.commit()
-        items = cur.execute("SELECT * from items WHERE request_id=?",
-                            (request_id,)).fetchall()
-        requests["items"] = items
-        return jsonify([requests])
+                conn.execute(
+                    'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
+                    'VALUES (?,?,?,?,?,?,?)',
+                    (str(items_id), name, str(description), "0", requests['_id'], datetime.datetime.now(), quantity,))
+                conn.commit()
+            items = cur.execute("SELECT * from items WHERE request_id=?",
+                                (request_id,)).fetchall()
+            requests["items"] = items
+            return jsonify([requests])
+        except:
+            return jsonify("Request could not be made")
     return jsonify("Not Authorized"), 401
 
 
@@ -595,17 +598,20 @@ def create_quote(request_id=None):
             UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/quotes/')
 
             file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
-            conn.execute(
-                'INSERT INTO quotes (id, path, request_id,status,created_at)'
-                ' VALUES (?, ?, ?, ?,?)',
-                (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
-                 "Quotes "
-                 "Added",
-                 datetime.datetime.now())
-            )
-            conn.commit()
-            conn.execute("UPDATE request set status='Quotes Added' where request._id=?", (request_id,))
-            conn.commit()
+            try:
+                conn.execute(
+                    'INSERT INTO quotes (id, path, request_id,status,created_at)'
+                    ' VALUES (?, ?, ?, ?,?)',
+                    (image_id, os.path.join(UPLOAD_FOLDER, image_id + file_name), request_id,
+                     "Quotes "
+                     "Added",
+                     datetime.datetime.now())
+                )
+                conn.commit()
+                conn.execute("UPDATE request set status='Quotes Added' where request._id=?", (request_id,))
+                conn.commit()
+            except:
+                return jsonify("Quote could not be Added")
         return jsonify({"Message": "Success"}), 201
 
 
@@ -624,6 +630,7 @@ def all_quotes():
 @bp.route('staffapprovedrequests',methods=['GET'])
 @bp.route('/allCashOrders', methods=['GET'])
 @bp.route('/staffAllOrders', methods=['GET'])
+@bp.route('/orders/<order_id>', methods=['GET'])
 @bp.route('/orders/', defaults={'order_id': None}, methods=['GET'])
 def all_quotes_verified(order_id=None):
     conn, cur = conn_curr()
@@ -777,7 +784,7 @@ def approve_orderfinance(order_id=None):
         else:
             pass
 
-        orders = cur.execute(f'SELECT * from orders where is_sign=1 and is_read=1').fetchall()
+        orders = cur.execute(f'SELECT * from orders where is_sign=1 and is_read=?',(is_read,)).fetchall()
         orders = items_json(orders)
         return jsonify(orders)
 
