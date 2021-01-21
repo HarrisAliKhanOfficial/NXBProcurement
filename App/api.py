@@ -637,7 +637,7 @@ def all_quotes_verified(order_id=None):
     request_name = request.url.split("/")[-1]
     if request_name == 'allCashOrders':
         orders = cur.execute(
-            'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NULL').fetchall()
+            'SELECT * from orders where orders.request_id IS NULL').fetchall()
         orders = items_json(orders)
     elif request_name == 'staffAllCashOrders':
         orders = cur.execute(
@@ -693,11 +693,13 @@ def approve_quote():
 @bp.route('/createCashOrder', methods=['POST'])
 def create_orders_from_staff():
     conn, cur = conn_curr()
+    order_id = str(uuid.uuid4())
+
     request_name = request.url.split("/")[-1]
     if request_name == 'createOrder':
-        is_cash = False
+        is_cash = 0
     else:
-        is_cash = True
+        is_cash = 1
     if 'files' not in request.files:
         return jsonify('No Quote has been added')
 
@@ -710,7 +712,6 @@ def create_orders_from_staff():
 
     if not items_array or not total:
         return jsonify("Missing arguments"), 422
-    order_id = str(uuid.uuid4())
 
     for file in files:
         file_name = str(file.filename).split(".")
@@ -729,19 +730,25 @@ def create_orders_from_staff():
                      (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
                       datetime.datetime.now(),))
         conn.commit()
+
     conn.execute(
         'INSERT INTO orders (id, items,request_id, total, staff_id, is_sign ,created_at, is_cash, '
         'is_read) '
         ' VALUES (?,?,?,?,?,?,?,?,?)',
-        (order_id, str(items_array), request_id, total, g.user['id'], False, datetime.datetime.now(),
-         is_cash, False)
+        (order_id, str(items_array), request_id, total, g.user['id'], 0, datetime.datetime.now(),
+         is_cash, 0)
     )
     conn.commit()
-    conn.execute('UPDATE request set status="Order Created", order_created=1 where _id=? ', (request_id,))
-    conn.commit()
+    if request_id:
+        conn.execute('UPDATE request set status="Order Created", order_created=1 where _id=? ', (request_id,))
+        conn.commit()
 
-    order = cur.execute("SELECT * from orders, request where orders.id=?", (order_id,)).fetchone()
-    order['images'] = get_order_image(order_id)
+        order = cur.execute("SELECT orders.*,request.* from orders,request where id=?", (order_id,)).fetchone()
+
+    else:
+        order = cur.execute("SELECT orders.* from orders where id=?", (order_id,)).fetchone()
+
+    order['images'] = get_order_image(order['id'])
     order['items'] = json.loads(order['items'])
     return jsonify([order])
 
@@ -774,7 +781,7 @@ def approve_orderfinance(order_id=None):
 
         elif request_name == 'allCashOrdersFinance':
             orders = cur.execute(
-                f'SELECT * from orders where is_sign=1 and is_read={is_read} and orders.request_id IS NULL').fetchall()
+                f'SELECT * from orders where is_sign=1 and is_read=? and orders.request_id IS NULL',(is_read,)).fetchall()
             orders = items_json(orders)
             return jsonify(orders)
         elif request_name == 'allOrders':
@@ -806,7 +813,10 @@ def approve_ordermanager():
         content = flask.request.get_json()
         order_id = content['order_id']
         comment = content.get('comment', "")
-        conn.execute('UPDATE orders set is_sign=?, comment=?  where id=?', (True, comment, order_id,))
+        if  not comment:
+            comment =' '
+
+        conn.execute('UPDATE orders set is_sign=1, comment=?  where orders.id=? and orders.is_sign=0', ( comment, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
 
