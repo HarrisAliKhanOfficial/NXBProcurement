@@ -301,6 +301,9 @@ def editorderorPurchase(order_id):
     total = content.get('total')
     files = request.files.getlist("files")
     try:
+        conn.execute('DELETE FROM items  where request_id=?', (request_id,))
+        conn.commit()
+
         for i in range(len(items_array)):
             content_items = content[int(i)]
             name = content_items['name']
@@ -311,10 +314,6 @@ def editorderorPurchase(order_id):
             requests = cur.execute("SELECT * from request WHERE _id=?",
                                    (request_id,)).fetchone()
             description = ''
-
-            conn.execute('DELETE FROM items  where request_id=?',( request_id,))
-            conn.commit()
-
             conn.execute(
                 'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
                 'VALUES (?,?,?,?,?,?,?)',
