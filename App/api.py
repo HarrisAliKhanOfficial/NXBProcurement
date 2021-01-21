@@ -120,8 +120,8 @@ def forget_password(email, verification):
                   sender='ashketchumreal4life@gmail.com',
                   recipients=[email]
                   )
-    msg.body = "Click the Link Below to Reset Password and Activate your Account \n api/email/change_password?code=" + str(
-        verification_code)
+    msg.body = "Click the Link Below to Reset Password and Activate your Account \n api/email/change_password?code=" + \
+               str(verification_code)
     mail.send(msg)
 
 
@@ -291,11 +291,69 @@ def deletex():
     return jsonify(json_list)
 
 
+@bp.route('/editOrderOrPurchase/<order_id>', methods=['PUT'])
+@bp.route('/editOrderOrPurchase/', defaults={'order_id': None}, methods=['PUT'])
+def editorderorPurchase(order_id):
+    conn, cur = conn_curr()
+    content = request.form
+
+    items_array = content.get('items')
+    request_id = content.get('request_id')
+    total = content.get('total')
+    files = request.files.getlist("files")
+    try:
+        for i in range(len(items_array)):
+            content_items = content[int(i)]
+            name = content_items['name']
+            quantity = content_items['quantity']
+            price = content_items['price']
+
+            conn.execute('UPDATE items set name=?,quantity=?,price=? where request_id=?',
+                         (name, quantity, price, request_id,))
+            conn.commit()
+
+        conn.execute('UPDATE orders set items=?,total=? where id and is_sign=0', str(order_id, total, ))
+        conn.commit()
+
+        conn.execute('DELETE FROM images where user_id=? is_sign=0', (str(order_id),))
+        conn.commit()
+
+        for file in files:
+            file_name = str(file.filename).split(".")
+            file_name = "." + file_name[-1]
+            image_id = str(uuid.uuid4())
+
+            if not os.path.exists(os.getcwd() + '/App/uploads/bills/'):
+                os.makedirs(os.getcwd() + '/App/uploads/bills/')
+            UPLOAD_FOLDER = str(os.getcwd() + '/App/uploads/bills/')
+
+            file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
+
+            conn.execute('INSERT INTO images (id, url, user_id,created_at)'
+                         ' VALUES (?, ?, ?, ?)',
+                         (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
+                          datetime.datetime.now(),))
+            conn.commit()
+
+        if request_id:
+            order = cur.execute("SELECT orders.*,request.* from orders,request where id=?", (order_id,)).fetchone()
+
+        else:
+            order = cur.execute("SELECT orders.* from orders where id=?", (order_id,)).fetchone()
+
+        order['images'] = get_order_image(order['id'])
+        order['items'] = json.loads(order['items'])
+        return jsonify([order])
+    except:
+        return jsonify("Changes Cannot be made")
+
+
+@bp.route('/deleteOrderOrPurchase/<order_id>', methods=['DELETE'])
 @bp.route('/deleteOrderOrPurchase/', defaults={'order_id': None}, methods=['DELETE'])
 def deleteorderorPurchase(order_id):
     conn, cur = conn_curr()
 
-    conn.execute('DELETE FROM orders where id=? and sign=0', (str(order_id),))
+    conn.execute('DELETE FROM orders where id=? and is_sign=0', (str(order_id),))
     conn.commit()
 
     return jsonify("Order has been deleted")
@@ -419,6 +477,10 @@ def create_request():
                 for file in files:
                     file_name = str(file.filename).split(".")
                     file_name = "." + file_name[-1]
+
+                    if file_name != ".csv":
+                        return jsonify("File Type not supported")
+
                     image_id = str(uuid.uuid4())
 
                     file.save(os.path.join(UPLOAD_FOLDER, image_id + file_name))
@@ -427,8 +489,9 @@ def create_request():
                     content = {}
                     for row in range(len(str(df['name']))):
                         try:
-                            content[row] = ({"items": {"name": str(df['name'][row]), "quantity": str(df['quantity'][row]),
-                                                       "description": str(df['description'][row])}})
+                            content[row] = (
+                                {"items": {"name": str(df['name'][row]), "quantity": str(df['quantity'][row]),
+                                           "description": str(df['description'][row])}})
                         except:
                             pass
                     items_array = content
@@ -510,7 +573,8 @@ def user(staff_id=None):
         cur, conn = conn_curr()
         query = f"Select * from user where id='{staff_id}'"
         user = cur.execute(query).fetchone()
-    del user['password']
+        if user:
+            del user['password']
     return jsonify({"data": g.user})
 
 
@@ -535,7 +599,7 @@ def assign_request(request_id):
             return jsonify("Provide the Request ID")
         try:
             orders = cur.execute(
-                f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved"').fetchall()
+            f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved"').fetchall()
             orders = attach_items_to_request('items', orders)
             orders = attach_items_to_request('quotes', orders)
             return jsonify(orders)
@@ -627,7 +691,7 @@ def all_quotes():
 @bp.route('/readCashOrders', methods=['GET'])
 @bp.route('/orders', methods=['GET'])
 @bp.route('/staffAllCashOrders', methods=['GET'])
-@bp.route('staffapprovedrequests',methods=['GET'])
+@bp.route('staffapprovedrequests', methods=['GET'])
 @bp.route('/allCashOrders', methods=['GET'])
 @bp.route('/staffAllOrders', methods=['GET'])
 @bp.route('/orders/<order_id>', methods=['GET'])
@@ -645,12 +709,14 @@ def all_quotes_verified(order_id=None):
         orders = items_json(orders)
     elif request_name == 'staffapprovedrequests':
         orders = cur.execute(
-            f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved" and request.staff_id="{g.user["id"]}"').fetchall()
-        orders = attach_items_to_request('items',orders)
-        orders = attach_items_to_request('quotes',orders)
+            f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved" and '
+            f'request.staff_id="{g.user["id"]}"').fetchall()
+        orders = attach_items_to_request('items', orders)
+        orders = attach_items_to_request('quotes', orders)
     elif request_name == 'staffAllOrders':
         orders = cur.execute(
-            f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NOT NULL and orders.staff_id="{g.user["id"]}"').fetchall()
+            f'SELECT * from orders,user where user.id=orders.staff_id and orders.request_id IS NOT NULL and '
+            f'orders.staff_id="{g.user["id"]}"').fetchall()
         orders = items_json(orders)
 
     elif request_name == 'readCashOrders':
@@ -781,7 +847,8 @@ def approve_orderfinance(order_id=None):
 
         elif request_name == 'allCashOrdersFinance':
             orders = cur.execute(
-                f'SELECT * from orders where is_sign=1 and is_read=? and orders.request_id IS NULL',(is_read,)).fetchall()
+                f'SELECT * from orders where is_sign=1 and is_read=? and orders.request_id IS NULL',
+                (is_read,)).fetchall()
             orders = items_json(orders)
             return jsonify(orders)
         elif request_name == 'allOrders':
@@ -791,7 +858,7 @@ def approve_orderfinance(order_id=None):
         else:
             pass
 
-        orders = cur.execute(f'SELECT * from orders where is_sign=1 and is_read=?',(is_read,)).fetchall()
+        orders = cur.execute(f'SELECT * from orders where is_sign=1 and is_read=?', (is_read,)).fetchall()
         orders = items_json(orders)
         return jsonify(orders)
 
@@ -813,10 +880,11 @@ def approve_ordermanager():
         content = flask.request.get_json()
         order_id = content['order_id']
         comment = content.get('comment', "")
-        if  not comment:
-            comment =' '
+        if not comment:
+            comment = ' '
 
-        conn.execute('UPDATE orders set is_sign=1, comment=?  where orders.id=? and orders.is_sign=0', ( comment, order_id,))
+        conn.execute('UPDATE orders set is_sign=1, comment=?  where orders.id=? and orders.is_sign=0',
+                     (comment, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
 
@@ -829,7 +897,7 @@ def approve_ordermanager():
         orders = cur.execute('SELECT * from orders where is_sign<>1 ').fetchall()
         for order in orders:
             order['items'] = json.loads(order['items'])
-        return jsonify(order)
+        return jsonify(orders)
 
 
 @bp.route('/dashboard', methods=['GET'])
