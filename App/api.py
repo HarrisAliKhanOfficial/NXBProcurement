@@ -522,15 +522,15 @@ def create_request():
                 conn.commit()
 
             for i in range(len(items_array)):
-                content_items = content[int(i)]
+                content_items = content.get([int(i)])
                 try:
-                    name = content_items['name']
-                    description = content_items['description']
-                    quantity = content_items['quantity']
+                    name = content_items.get('name')
+                    description = content_items.get('description')
+                    quantity = content_items.get('quantity')
                 except:
-                    name = content_items['items']['name']
-                    description = content_items['items']['description']
-                    quantity = content_items['items']['quantity']
+                    name = content_items.get(['items']['name'])
+                    description = content_items.get(['items']['description'])
+                    quantity = content_items.get(['items']['quantity'])
 
                 items_id = uuid.uuid4()
                 requests = cur.execute("SELECT * from request WHERE _id=?",
@@ -543,7 +543,11 @@ def create_request():
                 conn.commit()
             items = cur.execute("SELECT * from items WHERE request_id=?",
                                 (request_id,)).fetchall()
-            requests["items"] = items
+            try:
+                requests["items"] = items
+
+            except:
+                pass
             return jsonify([requests])
         except:
             return jsonify("Request could not be made")
