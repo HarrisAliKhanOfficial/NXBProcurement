@@ -136,8 +136,8 @@ def change_password():
     content = flask.request.get_json()
     json_list = []
     conn, cur = conn_curr()
-    oldPassword = content['oldPassword']
-    password = content['password']
+    oldPassword = content.get('oldPassword')
+    password = content.get('password')
     if check_password_hash(g.user['password'], oldPassword):
         conn.execute('UPDATE user set password=? where user.id=?', (generate_password_hash(password), g.user['id'],))
         conn.commit()
@@ -199,7 +199,7 @@ def terminatedUsers():
 def updateactivation():
     content = flask.request.get_json()
     conn, cur = conn_curr()
-    id = content['id']
+    id = content.get('id')
     user = cur.execute('SELECT * from user where id=?', (id,)).fetchone()
 
     if user['status'] == True:
@@ -216,7 +216,7 @@ def updateactivation():
 def updateterminated(id=None):
     content = flask.request.get_json()
     conn, cur = conn_curr()
-    id = content['id']
+    id = content.get('id')
     conn.execute('UPDATE user set is_terminated=? where id=? and is_terminated IS NULL', (1, id,))
     conn.commit()
     return str(200), 200
@@ -236,8 +236,8 @@ def update_user(user_id):
     conn, cur = conn_curr()
     content = flask.request.get_json()
     json_list = []
-    name = content['name']
-    phone = content['phone']
+    name = content.get('name')
+    phone = content.get('phone')
     role_id = content.get("role_id")
     image_id = uuid.uuid4()
     image_path = user_id
@@ -279,8 +279,8 @@ def deletex():
     content = flask.request.get_json()
     json_list = []
     conn, cur = conn_curr()
-    email = content['email']
-    user_id = content['id']
+    email = content.get('email')
+    user_id = content.get('id')
     try:
         conn.execute('DELETE FROM user where email=?', (email,))
         conn.commit()
@@ -367,11 +367,11 @@ def register():
     if request.method == "POST" and g.user['role_id'] == 1:
         conn, cur = conn_curr()
         content = flask.request.get_json()
-        name = content['name']
-        email = content['email']
-        password = content['password']
-        contact = content['phone']
-        role = content['role_id']
+        name = content.get('name')
+        email = content.get('email')
+        password = content.get('password')
+        contact = content.get('phone')
+        role = content.get('role_id')
         id = uuid.uuid4()
         verification_code = hash(datetime.datetime.now())
         created_at = datetime.datetime.now()
@@ -499,7 +499,7 @@ def create_request():
                             pass
                     items_array = content
             else:
-                items_array = content['items']
+                items_array = content.get('items')
 
             content = items_array
 
@@ -619,7 +619,7 @@ def read_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
         content = flask.request.get_json()
-        request_id = content['id']
+        request_id = content.get('id')
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Pending"',
                            (request_id,)).fetchone()
         return jsonify(user)
@@ -635,7 +635,7 @@ def approved_request(id=None):
     conn, cur = conn_curr()
     if request.method == 'POST':
         content = flask.request.get_json()
-        request_id = content['id']
+        request_id = content.get('id')
         json_list = []
         user = cur.execute('SELECT * from items, request where request_id=? and request.status="Approved"',
                            (request_id,)).fetchall()
@@ -749,7 +749,7 @@ def approve_quote():
     conn, cur = conn_curr()
     if request.method == "POST":
         content = flask.request.get_json()
-        quote_id = content['quote_id']
+        quote_id = content.get('quote_id')
         conn.execute("UPDATE quotes set status=? where id=? and status=?", ("Approved", quote_id, "Quotes Added"))
         conn.commit()
         quote = cur.execute('SELECT * from quotes where quotes.id=?', (quote_id,)).fetchone()
@@ -840,7 +840,7 @@ def approve_orderfinance(order_id=None):
     is_read = 0
     if request.method == 'POST':
         content = flask.request.get_json()
-        is_read = content['is_read']
+        is_read = content.get('is_read')
         conn.execute('UPDATE orders set is_read=? where id=? and is_sign=1 ', (is_read, order_id,))
         conn.commit()
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
@@ -887,7 +887,7 @@ def approve_ordermanager():
         return jsonify("Unauthorized user"), 401
     if request.method == 'POST':
         content = flask.request.get_json()
-        order_id = content['order_id']
+        order_id = content.get('order_id')
         comment = content.get('comment', "")
         if not comment:
             comment = ' '
