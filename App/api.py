@@ -524,13 +524,13 @@ def create_request():
             for i in range(len(items_array)):
                 content_items = content.get([int(i)])
                 try:
-                    name = content_items.get('name')
-                    description = content_items.get('description')
-                    quantity = content_items.get('quantity')
+                    name = content_items['name']
+                    description = content_items['description']
+                    quantity = content_items['quantity']
                 except:
-                    name = content_items.get(['items']['name'])
-                    description = content_items.get(['items']['description'])
-                    quantity = content_items.get(['items']['quantity'])
+                    name = content_items['items']['name']
+                    description = content_items['items']['description']
+                    quantity = content_items['items']['quantity']
 
                 items_id = uuid.uuid4()
                 requests = cur.execute("SELECT * from request WHERE _id=?",
@@ -742,7 +742,6 @@ def all_quotes_verified(order_id=None):
 
         except:
             orders['items'] = json.loads(orders['items'])
-
 
     return jsonify(orders)
 
