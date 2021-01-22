@@ -49,7 +49,7 @@ CREATE TABLE quotes(
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
     is_pdf VARCHAR(255),
-    FOREIGN KEY (request_id) REFERENCES request(_id)
+    FOREIGN KEY (request_id) REFERENCES request(_id) ON UPDATE NO ACTION
 
 );
 
@@ -63,7 +63,7 @@ CREATE TABLE items(
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
     quantity INTEGER,
 
-    FOREIGN KEY (request_id) REFERENCES request (_id)
+    FOREIGN KEY (request_id) REFERENCES request (_id) ON UPDATE NO ACTION
 
 );
 
@@ -80,9 +80,9 @@ CREATE TABLE orders(
     is_cash BOOLEAN,
     is_read BOOLEAN,
     comment TEXT,
-    FOREIGN KEY (request_id) REFERENCES request (_id)
-    FOREIGN KEY (items) REFERENCES items (id)
-    FOREIGN KEY (staff_id) REFERENCES user(id)
+    FOREIGN KEY (request_id) REFERENCES request (_id) ON UPDATE NO ACTION
+    FOREIGN KEY (items) REFERENCES items (id) ON UPDATE NO ACTION
+    FOREIGN KEY (staff_id) REFERENCES user(id) ON UPDATE NO ACTION
 
 );
 
@@ -118,7 +118,7 @@ CREATE TABLE images(
     is_pdf VARCHAR(255),
     created_at TIMESTAMP WITHOUT TIMEZONE_,
     updated_at TIMESTAMP WITHOUT TIMEZONE_,
-    FOREIGN KEY (user_id) REFERENCES user(id)
+    FOREIGN KEY (user_id) REFERENCES user(id) ON UPDATE NO ACTION
 
 );
 

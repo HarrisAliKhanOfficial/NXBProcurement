@@ -300,27 +300,14 @@ def editorderorPurchase(order_id):
     request_id = content.get('request_id')
     total = content.get('total')
     files = request.files.getlist("files")
+    items_array = json.loads(items_array)
+
     try:
-        conn.execute('DELETE FROM items  where request_id=?', (request_id,))
+        conn.execute('UPDATE orders set items=?,total=? where id=? and is_sign=0',
+                     (str(items_array), total, order_id,))
         conn.commit()
 
-        for i in range(len(items_array)):
-            content_items = content[int(i)]
-            name = content_items['name']
-            quantity = content_items['quantity']
-            price = content_items['price']
-
-            items_id = uuid.uuid4()
-            requests = cur.execute("SELECT * from request WHERE _id=?",
-                                   (request_id,)).fetchone()
-            description = ''
-            conn.execute(
-                'INSERT INTO items(id,name,description,price,request_id,created_at,quantity) '
-                'VALUES (?,?,?,?,?,?,?)',
-                (str(items_id), name, str(description), str(price), requests['_id'], datetime.datetime.now(), quantity,))
-            conn.commit()
-
-        conn.execute('DELETE FROM images where user_id=? is_sign=0', (str(order_id),))
+        conn.execute('DELETE FROM images where user_id=?', (str(order_id),))
         conn.commit()
 
         for file in files:
@@ -339,16 +326,27 @@ def editorderorPurchase(order_id):
                          (image_id, str(os.path.join(UPLOAD_FOLDER, image_id + file_name)), order_id,
                           datetime.datetime.now(),))
             conn.commit()
-
         if request_id:
-            order = cur.execute("SELECT orders.*,request.* from orders,request where id=?", (order_id,)).fetchone()
+
+            order = cur.execute(
+                "SELECT * from orders,request where request._id=? and orders.request_id=request._id ",
+                (str(request_id),)).fetchone()
+
 
         else:
+
             order = cur.execute("SELECT orders.* from orders where id=?", (order_id,)).fetchone()
+            return order
 
         order['images'] = get_order_image(order['id'])
-        order['items'] = json.loads(order['items'])
         return jsonify([order])
+
+
+
+
+
+
+
     except:
         return jsonify("Changes Cannot be made")
 
@@ -604,7 +602,7 @@ def assign_request(request_id):
             return jsonify("Provide the Request ID")
         try:
             orders = cur.execute(
-            f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved"').fetchall()
+                f'SELECT * from request,quotes where quotes.request_id=request._id and quotes.status="Approved"').fetchall()
             orders = attach_items_to_request('items', orders)
             orders = attach_items_to_request('quotes', orders)
             return jsonify(orders)
@@ -736,9 +734,11 @@ def all_quotes_verified(order_id=None):
             query = f'SELECT * from orders where id="{order_id}" and staff_id= "{g.user["id"]}" '
         orders = cur.execute(query).fetchone()
         try:
-            orders['items'] = json.loads(orders['items'])
+            return orders
+
         except:
-            return jsonify("Order Id is Incorrect or Not provided")
+            orders['items'] = json.loads(orders['items'])
+
 
     return jsonify(orders)
 
@@ -870,8 +870,12 @@ def approve_orderfinance(order_id=None):
 
 def items_json(orders):
     for i in range(len(orders)):
-        orders[i]['images'] = get_order_image(orders[i]['id'])
-        orders[i]['items'] = json.loads(orders[i]['items'])
+        try:
+            orders[i]['images'] = get_order_image(orders[i]['id'])
+            orders[i]['items'] = json.loads(orders[i]['items'])
+
+        except:
+            pass
     return orders
 
 
