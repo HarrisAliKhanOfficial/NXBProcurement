@@ -14,6 +14,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from App import UPLOAD_FOLDER, priv_key
 from App import sign_image
 from . import db
+import celery
 
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 bp = Blueprint('api', __name__, url_prefix="/api")
@@ -108,6 +109,7 @@ def email_verify(code=None):
     return jsonify(json_list)
 
 
+@celery.task
 def forget_password(email, verification):
     conn, cur = conn_curr()
     id = uuid.uuid4()

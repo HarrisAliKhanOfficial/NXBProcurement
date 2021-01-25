@@ -4,10 +4,19 @@ from flask import Flask
 
 from . import db
 
-from flaskext.mysql import MySQL
+# from flaskext.mysql import MySQL
+
+from App.celeryFile import make_celery
 
 UPLOAD_FOLDER = os.path.join(os.getcwd(), "App", "uploads")
 priv_key = 'pppppppppqqqqqqqqqqqqqqeeeeeeeeeee'
+
+# CELERY_BROKER_BACKEND = "sqlakombu.transport.Transport"
+
+CELERY_BROKER_BACKEND = "db+sqlite:///celery.sqlite"
+CELERY_BROKER_URL = "db+sqlite:///results.sqlite"
+CELERY_CACHE_BACKEND = "db+sqlite:///celery.sqlite"
+CELERY_RESULT_BACKEND = "db+sqlite:///celery.sqlite"
 
 from . import api as Api
 
@@ -57,6 +66,18 @@ def create_app(test_config=None):
     app.config['MYSQL_DATABASE_HOST'] = 'localhost'
 
 
+    # app.config['CELERY_BROKER_BACKEND'] = "sqlakombu.transport.Transport"
+
+    app.config['CELERY_BROKER_URL'] = 'redis://localhost:6379/0'
+    app.config['CELERY_RESULT_BACKEND'] = 'redis://localhost:6379/0'
+    app.config['CELERY_BROKER_BACKEND'] = "db+sqlite:///celery.sqlite"
+    app.config['CELERY_CACHE_BACKEND'] = "db+sqlite:///celery.sqlite"
+
+    # app.config['CELERY_RESULT_BACKEND'] = "db+sqlite:///celery.sqlite"
+    # app.config['CELERY_BROKER_URL'] = "db+sqlite:///results.sqlite"
+
+
+    celery = make_celery(app)
 
     # auth.mail.init_app(app)
     Api.mail.init_app(app)
