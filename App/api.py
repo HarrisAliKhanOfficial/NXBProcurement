@@ -893,6 +893,7 @@ def approve_ordermanager():
     if request.method == 'POST':
         content = flask.request.get_json()
         order_id = content.get('order_id')
+
         comment = content.get('comment', "")
         if not comment:
             comment = ' '
@@ -900,11 +901,26 @@ def approve_ordermanager():
         conn.execute('UPDATE orders set is_sign=1, comment=?  where orders.id=? and orders.is_sign=0',
                      (comment, order_id,))
         conn.commit()
+
+        order_check = cur.execute('SELECT * from orders where id=?', (order_id,))
+
+        try:
+            if order_check['request_id'] not in ['', 'NULL', None]:
+                request_id = order_check['request_id']
+
+                conn.execute('UPDATE orders, request set status="Digitally Signed"  where orders.request_id=request._id '
+                             'and orders.request_id=?',
+                             (request_id,))
+                conn.commit()
+
+        except:
+            pass
+
         user = cur.execute('SELECT * from orders where id=?', (order_id,)).fetchone()
 
         images = get_order_image(order_id)
         for image in images:
-            sign_image.add_signarture(image['url'])
+            sign_image.add_signature(image['url'])
 
         return jsonify({"Message": "Success"}), 201
     else:

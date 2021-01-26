@@ -1,6 +1,6 @@
 import os
 
-from flask import Flask
+from flask import Flask, render_template
 
 from . import db
 
@@ -62,9 +62,8 @@ def create_app(test_config=None):
 
     app.config['MYSQL_DATABASE_USER'] = 'root'
     app.config['MYSQL_DATABASE_PASSWORD'] = 'root'
-    app.config['MYSQL_DATABASE_DB'] = 'NXB Procurement'
+    app.config['MYSQL_DATABASE_DB'] = 'NXBProcurement'
     app.config['MYSQL_DATABASE_HOST'] = 'localhost'
-
 
     # app.config['CELERY_BROKER_BACKEND'] = "sqlakombu.transport.Transport"
 
@@ -76,11 +75,13 @@ def create_app(test_config=None):
     # app.config['CELERY_RESULT_BACKEND'] = "db+sqlite:///celery.sqlite"
     # app.config['CELERY_BROKER_URL'] = "db+sqlite:///results.sqlite"
 
-
     celery = make_celery(app)
 
     # auth.mail.init_app(app)
     Api.mail.init_app(app)
 
+    @app.route('/')
+    def index():
+        return render_template('/home/harrisali/Downloads/PMS/storage/frontend/index.html')
 
     return app

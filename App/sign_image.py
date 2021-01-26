@@ -6,7 +6,7 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 
-def add_signarture(url):
+def add_signature(url):
     filename, ext = os.path.splitext(url)
 
     img = Image.open(url)
@@ -26,6 +26,7 @@ def add_signarture(url):
     size = (600, 400)
 
     draw = img.thumbnail(size, Image.ANTIALIAS)
+
     draw = ImageDraw.Draw(img)
 
     font = ImageFont.truetype(absolute_path, font_size)
